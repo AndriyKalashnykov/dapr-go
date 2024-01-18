@@ -61,7 +61,9 @@ help:
 
 #clean: @ Cleanup
 clean:
-	@sudo rm -rf ./dist
+	@rm ./read-values/main
+	@rm ./subscriber/main
+	@rm ./write-values/main
 
 #test: @ Run tests
 test:
