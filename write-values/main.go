@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/go-chi/chi/v5"
 	"log"
 	"net/http"
 	"os"
 
 	dapr "github.com/dapr/go-sdk/client"
-	"github.com/go-chi/chi"
 )
 
 var (

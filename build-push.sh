@@ -20,6 +20,6 @@ build_and_deploy() {
     cd ..
 }
 
-build_and_deploy "read-values" "salaboy/ambient-read-values"
-build_and_deploy "subscriber" "salaboy/ambient-subscriber"
-build_and_deploy "write-values" "salaboy/ambient-write-values"
+build_and_deploy "read-values" "andriykalashnykov/ambient-read-values"
+build_and_deploy "subscriber" "andriykalashnykov/ambient-subscriber"
+build_and_deploy "write-values" "andriykalashnykov/ambient-write-values"
