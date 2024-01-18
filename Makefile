@@ -69,11 +69,13 @@ test:
 
 #build: @ Build binary
 build:
-	@export GOFLAGS=$(GOFLAGS); export CGO_ENABLED=0; go build -a -o go-httpbin ./cmd/httpbin/main.go
+	@export GOFLAGS=$(GOFLAGS); export CGO_ENABLED=0; go build -o ./read-values/main ./read-values/main.go
+	@export GOFLAGS=$(GOFLAGS); export CGO_ENABLED=0; go build -o ./subscriber/main ./subscriber/main.go
+	@export GOFLAGS=$(GOFLAGS); export CGO_ENABLED=0; go build -o ./write-values/main ./write-values/main.go
 
 #run: @ Run binary
 run:
-	@export GOFLAGS=$(GOFLAGS); go run ./cmd/httpbin/main.go
+	@export GOFLAGS=$(GOFLAGS); go run ./read-values/main.go
 
 #get: @ Download and install dependency packages
 get:
