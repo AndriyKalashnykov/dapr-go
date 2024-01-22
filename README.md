@@ -1,4 +1,4 @@
-# dapr-ambient-examples
+# dapr-go
 
 This repository aims to show how to use Dapr Ambient and Dapr building blocks (State management and Pub/Sub) with multiples services into a cluster kubernetes.
 
