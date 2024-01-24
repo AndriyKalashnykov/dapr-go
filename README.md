@@ -5,7 +5,7 @@ This repository aims to show how to use Dapr Ambient and Dapr building blocks (S
 ## Architecture
 Below, you can see a high-level and simple architecture used on this example.
 
-![architecture](/docs/img/architecture.png)
+![architecture](./docs/img/architecture.png)
 
 ### subscriber
 
