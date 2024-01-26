@@ -35,7 +35,7 @@ func main() {
 
 func Handle(res http.ResponseWriter, req *http.Request) {
 	ctx := context.Background()
-	daprClient, err := dapr.NewClientWithAddress(fmt.Sprintf("%s:%s", DAPR_HOST, DAPR_PORT))
+	daprClient, err := dapr.NewClientWithAddressContext(ctx, fmt.Sprintf("%s:%s", DAPR_HOST, DAPR_PORT))
 	if err != nil {
 		panic(err)
 	}
