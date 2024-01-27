@@ -2,8 +2,6 @@
 CURRENTTAG:=$(shell git describe --tags --abbrev=0)
 NEWTAG ?= $(shell bash -c 'read -p "Please provide a new tag (currnet tag - ${CURRENTTAG}): " newtag; echo $$newtag')
 GOFLAGS=-mod=mod
-GO_BUILDER_VERSION=v1.21.3
-OSXCROSS_PATH=/opt/osxcross-clang-17.0.3-macosx-14.0/target/bin
 
 IS_DARWIN := 0
 IS_LINUX := 0
@@ -57,7 +55,19 @@ help:
 	@clear
 	@echo "Usage: make COMMAND"
 	@echo "Commands :"
-	@grep -E '[a-zA-Z\.\-]+:.*?@ .*$$' $(MAKEFILE_LIST)| tr -d '#' | awk 'BEGIN {FS = ":.*?@ "}; {printf "\033[32m%-13s\033[0m - %s\n", $$1, $$2}'
+	@grep -E '[a-zA-Z\.\-]+:.*?@ .*$$' $(MAKEFILE_LIST)| tr -d '#' | awk 'BEGIN {FS = ":.*?@ "}; {printf "\033[32m%-15s\033[0m - %s\n", $$1, $$2}'
+
+#start-minikube: @ start minikube, parametrized example: ./scripts/start-minikube.sh dapr-go 1 8000mb 2 40g docker
+start-minikube:
+	./scripts/start-minikube.sh
+
+#stop-minikube: @ stop minikube
+stop-minikube:
+	./scripts/stop-minikube.sh
+
+#delete-minikube: @ delete minikube
+delete-minikube:
+	./scripts/delete-minikube.sh
 
 #clean: @ Cleanup
 clean:
@@ -67,7 +77,9 @@ clean:
 
 #test: @ Run tests
 test:
-	@export GOFLAGS=$(GOFLAGS); go test $(go list ./...)
+	@cd read-values && export GOFLAGS=$(GOFLAGS); go test $(go list ./...)
+	@cd subscriber && export GOFLAGS=$(GOFLAGS); go test $(go list ./...)
+	@cd write-values && export GOFLAGS=$(GOFLAGS); go test $(go list ./...)
 
 #build: @ Build binary
 build:
@@ -81,28 +93,9 @@ run:
 
 #get: @ Download and install dependency packages
 get:
-	@export GOFLAGS=$(GOFLAGS); go get . ; go mod tidy
-
-test-release: clean
-	docker run --rm --privileged \
-		-v $(CURDIR):/golang-cross-example \
-		-v /var/run/docker.sock:/var/run/docker.sock \
-		-v $(GOPATH)/src:/go/src \
-		-w /golang-cross-example \
-		ghcr.io/gythialy/golang-cross:$(GO_BUILDER_VERSION) --skip=publish --clean --snapshot --config .goreleaser-Linux.yml
-
-	docker run --rm --privileged \
-		-v $(CURDIR):/golang-cross-example \
-		-v /var/run/docker.sock:/var/run/docker.sock \
-		-v $(GOPATH)/src:/go/src \
-		-w /golang-cross-example \
-		ghcr.io/gythialy/golang-cross:$(GO_BUILDER_VERSION) --skip=publish --clean --snapshot --config .goreleaser-Darwin-cross.yml
-#ifeq ($(IS_LINUX), 1)
-#	export PATH=$(OSXCROSS_PATH):${PATH} && goreleaser --skip=publish --clean --snapshot --config .goreleaser-Linux.yml && goreleaser --skip=publish --clean --snapshot --config .goreleaser-Darwin-cross.yml
-#endif
-#ifeq ($(IS_DARWIN), 1)
-#	export PATH=$(OSXCROSS_PATH):${PATH} && goreleaser --skip=publish --clean --snapshot --config .goreleaser-Darwin.yml
-#endif
+	@cd read-values && export GOFLAGS=$(GOFLAGS); go get . ; go mod tidy
+	@cd subscriber && export GOFLAGS=$(GOFLAGS); go get . ; go mod tidy
+	@cd write-values && export GOFLAGS=$(GOFLAGS); go get . ; go mod tidy
 
 #release: @ Create and push a new tag
 release: build
@@ -127,5 +120,15 @@ version:
 	@echo $(shell git describe --tags --abbrev=0)
 
 #image-build: @ Build a Docker image
-image-build:
-	docker build -t go-httpbin:$(CURRENTTAG) .
+image-build: build
+	@cd read-values && docker build --platform linux/amd64 --build-arg ARCH=amd64/ -t andriykalashnykov/ambient-read-values:0.0.1 .
+	@cd subscriber && docker build --platform linux/amd64 --build-arg ARCH=amd64/ -t andriykalashnykov/ambient-subscriber:0.0.1 .
+	@cd write-values && docker build --platform linux/amd64 --build-arg ARCH=amd64/ -t andriykalashnykov/ambient-write-values:0.0.1 .
+
+#deploy-dapr: @ deploy dapr
+deploy-dapr:
+	./scripts/deploy-dapr.sh
+
+#deploy-apps: @ deploy apps
+deploy-apps:
+	./scripts/deploy-apps.sh

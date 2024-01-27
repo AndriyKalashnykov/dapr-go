@@ -1,6 +1,7 @@
-ARG ARCH=
-FROM ${ARCH}alpine
+#ARG ARCH=
+#FROM ${ARCH}alpine
 
-COPY main main
-
+FROM alpine:3.19.1 as runtime
+COPY main /main
+CMD ["/bin/sh", "-c", "./main"]
 ENTRYPOINT [ "./main" ]
