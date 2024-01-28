@@ -121,9 +121,9 @@ version:
 
 #image-build: @ Build a Docker image
 image-build: build
-	@cd read-values && docker build --platform linux/amd64 --build-arg ARCH=amd64/ -t andriykalashnykov/ambient-read-values:0.0.1 .
-	@cd subscriber && docker build --platform linux/amd64 --build-arg ARCH=amd64/ -t andriykalashnykov/ambient-subscriber:0.0.1 .
-	@cd write-values && docker build --platform linux/amd64 --build-arg ARCH=amd64/ -t andriykalashnykov/ambient-write-values:0.0.1 .
+	@cd read-values && docker build -t andriykalashnykov/ambient-read-values:0.0.1 .
+	@cd subscriber && docker build -t andriykalashnykov/ambient-subscriber:0.0.1 .
+	@cd write-values && docker build -t andriykalashnykov/ambient-write-values:0.0.1 .
 
 #deploy-dapr: @ deploy dapr
 deploy-dapr:
