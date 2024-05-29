@@ -76,3 +76,7 @@ Uninstall
 ```bash
 helm uninstall redis --namespace dapr-go
 ```
+
+### Referencec
+
+[dapr-shared-examples](https://github.com/salaboy/dapr-shared-examples)
