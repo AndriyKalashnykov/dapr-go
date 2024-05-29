@@ -31,13 +31,11 @@ if [ -z "${DAPRGO_APP}" ]; then
     exit 1
 fi
 
-helm upgrade --install dapr dapr/dapr \
-    --version=1.12.4 \
-    --namespace dapr-system \
-    --create-namespace \
-    --wait
-
-helm install dapr-dashboard dapr/dapr-dashboard --namespace dapr-system
+helm repo add dapr https://dapr.github.io/helm-charts/ && \
+helm repo update && \
+helm upgrade --install dapr dapr/dapr --set version=1.13.4 --namespace dapr-system --create-namespace --wait && \
+helm upgrade --install dapr-dashboard dapr/dapr-dashboard --set version=1.13.4 --namespace dapr-system --set serviceType=LoadBalancer --wait && \
+kubectl get pods --namespace dapr-system
 
 kubectl create ns dapr-go
 
