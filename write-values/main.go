@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	daprClient       dapr.Client
+	//DaprClient       dapr.Client
 	STATE_STORE_NAME = GetenvOrDefault("STATE_STORE_NAME", "statestore")
 	DAPR_HOST        = GetenvOrDefault("DAPR_HOST", "my-ambient.default.svc.cluster.local")
 	DAPR_PORT        = GetenvOrDefault("DAPR_PORT", "50001")
