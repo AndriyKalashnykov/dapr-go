@@ -57,17 +57,21 @@ help:
 	@echo "Commands :"
 	@grep -E '[a-zA-Z\.\-]+:.*?@ .*$$' $(MAKEFILE_LIST)| tr -d '#' | awk 'BEGIN {FS = ":.*?@ "}; {printf "\033[32m%-15s\033[0m - %s\n", $$1, $$2}'
 
-#start-minikube: @ start minikube, parametrized example: ./scripts/start-minikube.sh dapr-go 1 8000mb 2 40g docker
-start-minikube:
-	./scripts/start-minikube.sh
+#minikube-start: @ Start Minikube, parametrized example: ./scripts/minikube.sh start dapr-go 1 8000mb 2 40g docker 192.168.200.200
+minikube-start:
+	./scripts/minikube.sh start
 
-#stop-minikube: @ stop minikube
-stop-minikube:
-	./scripts/stop-minikube.sh
+#minikube-stop: @ Stop Minikube
+minikube-stop:
+	./scripts/minikube.sh stop
 
-#delete-minikube: @ delete minikube
-delete-minikube:
-	./scripts/delete-minikube.sh
+#minikube-delete: @ Delete Minikube
+minikube-delete:
+	./scripts/minikube.sh delete
+
+#minikube-list: @ List Minikube profiles
+minikube-list:
+	minikube profile list
 
 #clean: @ Cleanup
 clean:
@@ -127,23 +131,26 @@ image-build: build
 
 #deploy-dapr: @ Deploy DAPR
 deploy-dapr:
-	helm repo add dapr https://dapr.github.io/helm-charts/ && \
-	helm repo update && \
-	helm upgrade --install dapr dapr/dapr --set version=1.13.4 --namespace dapr-system --create-namespace --wait && \
-	helm upgrade --install dapr-dashboard dapr/dapr-dashboard --set version=1.13.4 --namespace dapr-system --set serviceType=LoadBalancer --wait && \
-	kubectl get pods --namespace dapr-system
+	./scripts/deploy-dapr.sh
 # kubectl port-forward svc/dapr-dashboard 8080:8080 -n dapr-system
 # xdg-open http://localhost:8080
 
 #undeploy-dapr: @ Undeploy DAPR
 undeploy-dapr:
-	helm uninstall dapr --namespace dapr-system && \
-	helm uninstall dapr-dashboard --namespace dapr-system
+	./scripts/undeploy-dapr.sh
 
-#deploy-apps: @ deploy apps
-deploy-apps: image-build
-	./scripts/deploy-apps.sh
+#deploy-components: @ Deploy Redis, Kafka, etc.
+deploy-components:
+	./scripts/components.sh deploy
 
-#undeploy-apps: @ undeploy apps
-undeploy-apps:
-	./scripts/undeploy-apps.sh
+#undeploy-components: @ Undeploy Redis, Kafka, etc.
+undeploy-components:
+	./scripts/components.sh undeploy
+
+#deploy-workloads: @ deploy workloads
+deploy-workloads: image-build
+	./scripts/workloads.sh deploy
+
+#undeploy-workloads: @ undeploy workloads
+undeploy-workloads:
+	./scripts/workloads.sh undeploy
