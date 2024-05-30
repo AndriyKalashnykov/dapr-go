@@ -3,6 +3,6 @@ kind: Subscription
 metadata:
   name: notifications-subscription
 spec:
-  topic: notifications 
+  topic: notifications
   route: /notifications
   pubsubname: notifications-pubsub

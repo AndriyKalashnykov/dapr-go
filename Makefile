@@ -83,9 +83,9 @@ test:
 
 #build: @ Build binary
 build:
-	@export GOFLAGS=$(GOFLAGS); export CGO_ENABLED=0; go build -o ./read-values/main ./read-values/main.go
-	@export GOFLAGS=$(GOFLAGS); export CGO_ENABLED=0; go build -o ./subscriber/main ./subscriber/main.go
-	@export GOFLAGS=$(GOFLAGS); export CGO_ENABLED=0; go build -o ./write-values/main ./write-values/main.go
+	@export GOFLAGS=$(GOFLAGS); export CGO_ENABLED=0; GOOS=linux GOARCH=amd64 go build -o ./read-values/main ./read-values/main.go
+	@export GOFLAGS=$(GOFLAGS); export CGO_ENABLED=0; GOOS=linux GOARCH=amd64 go build -o ./subscriber/main ./subscriber/main.go
+	@export GOFLAGS=$(GOFLAGS); export CGO_ENABLED=0; GOOS=linux GOARCH=amd64 go build -o ./write-values/main ./write-values/main.go
 
 #run: @ Run binary
 run:

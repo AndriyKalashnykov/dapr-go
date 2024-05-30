@@ -16,17 +16,17 @@ spec:
         dapr.io/app-port: "8080"
     spec:
       containers:
-      - name: read-values
-        image: andriykalashnykov/dapr-go-read-values:v0.0.1
-        env: 
-        - name: DAPR_HOST
-          value: my-ambient
-        resources:
-          limits:
-            memory: "128Mi"
-            cpu: "500m"
-        ports:
-        - containerPort: 8080
+        - name: read-values
+          image: andriykalashnykov/dapr-go-read-values:v0.0.1
+          env:
+            - name: DAPR_PORT
+              value: "50001"
+          resources:
+            limits:
+              memory: "128Mi"
+              cpu: "500m"
+          ports:
+            - containerPort: 8080
 ---
 apiVersion: v1
 kind: Service
@@ -36,8 +36,8 @@ spec:
   selector:
     app: read-values
   ports:
-  - port: 80
-    targetPort: 8080
+    - port: 80
+      targetPort: 8080
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -53,14 +53,14 @@ spec:
         app: subscriber
     spec:
       containers:
-      - name: subscriber
-        image: andriykalashnykov/dapr-go-subscriber:v0.0.1
-        resources:
-          limits:
-            memory: "128Mi"
-            cpu: "500m"
-        ports:
-        - containerPort: 8080
+        - name: subscriber
+          image: andriykalashnykov/dapr-go-subscriber:v0.0.1
+          resources:
+            limits:
+              memory: "128Mi"
+              cpu: "500m"
+          ports:
+            - containerPort: 8080
 ---
 apiVersion: v1
 kind: Service
@@ -70,8 +70,8 @@ spec:
   selector:
     app: subscriber
   ports:
-  - port: 80
-    targetPort: 8080
+    - port: 80
+      targetPort: 8080
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -91,17 +91,17 @@ spec:
         dapr.io/app-port: "8080"
     spec:
       containers:
-      - name: write-values
-        image: andriykalashnykov/dapr-go-write-values:v0.0.1
-        env:
-        - name: DAPR_HOST
-          value: my-ambient
-        resources:
-          limits:
-            memory: "128Mi"
-            cpu: "500m"
-        ports:
-        - containerPort: 8080
+        - name: write-values
+          image: andriykalashnykov/dapr-go-write-values:v0.0.1
+          env:
+            - name: DAPR_PORT
+              value: "50001"
+          resources:
+            limits:
+              memory: "128Mi"
+              cpu: "500m"
+          ports:
+            - containerPort: 8080
 ---
 apiVersion: v1
 kind: Service
@@ -111,5 +111,5 @@ spec:
   selector:
     app: write-values
   ports:
-  - port: 80
-    targetPort: 8080
+    - port: 80
+      targetPort: 8080

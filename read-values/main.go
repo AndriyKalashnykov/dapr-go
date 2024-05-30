@@ -14,9 +14,10 @@ import (
 )
 
 var (
-	//daprClient       dapr.Client
+	daprClient       dapr.Client
+	ctx              context.Context
 	STATE_STORE_NAME = GetenvOrDefault("STATE_STORE_NAME", "statestore")
-	DAPR_HOST        = GetenvOrDefault("DAPR_HOST", "my-ambient.default.svc.cluster.local")
+	DAPR_HOST        = GetenvOrDefault("DAPR_HOST", "")
 	DAPR_PORT        = GetenvOrDefault("DAPR_PORT", "50001")
 )
 
@@ -33,17 +34,18 @@ func main() {
 	port := GetenvOrDefault("APP_PORT", "8080")
 	log.Printf("Starting Read Values App in Port: %s", port)
 	http.ListenAndServe(":"+port, r)
+
+	ctx = context.Background()
+	dc, err := dapr.NewClientWithAddressContext(ctx, fmt.Sprintf("%s:%s", DAPR_HOST, DAPR_PORT))
+	if err != nil {
+		panic(err)
+	}
+	daprClient = dc
+	defer daprClient.Close()
 }
 
 // Handle an HTTP Request.
 func Handle(res http.ResponseWriter, req *http.Request) {
-
-	ctx := context.Background()
-
-	daprClient, err := dapr.NewClientWithAddressContext(ctx, fmt.Sprintf("%s:%s", DAPR_HOST, DAPR_PORT))
-	if err != nil {
-		panic(err)
-	}
 
 	result, err := daprClient.GetState(ctx, STATE_STORE_NAME, "values", nil)
 	if err != nil {
