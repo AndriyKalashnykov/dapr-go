@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -17,7 +16,7 @@ var (
 	daprClient       dapr.Client
 	ctx              context.Context
 	STATE_STORE_NAME = GetenvOrDefault("STATE_STORE_NAME", "statestore")
-	DAPR_HOST        = GetenvOrDefault("DAPR_HOST", "")
+	DAPR_HOST        = GetenvOrDefault("DAPR_HOST", "127.0.0.1")
 	DAPR_PORT        = GetenvOrDefault("DAPR_PORT", "50001")
 )
 
@@ -26,6 +25,19 @@ type MyValues struct {
 }
 
 func main() {
+
+	ctx = context.Background()
+	//dc, err := dapr.NewClientWithAddressContext(ctx, fmt.Sprintf("%s:%s", DAPR_HOST, DAPR_PORT))
+	dc, err := dapr.NewClient()
+	if err != nil {
+		log.Fatalf("dapr client: NewClient: %s", err)
+	}
+	//if err != nil {
+	//	panic(err)
+	//}
+	daprClient = dc
+	defer daprClient.Close()
+
 	r := chi.NewRouter()
 	r.Get("/", Handle)
 	r.Get("/health/{endpoint:readiness|liveness}", func(w http.ResponseWriter, r *http.Request) {
@@ -34,14 +46,6 @@ func main() {
 	port := GetenvOrDefault("APP_PORT", "8080")
 	log.Printf("Starting Read Values App in Port: %s", port)
 	http.ListenAndServe(":"+port, r)
-
-	ctx = context.Background()
-	dc, err := dapr.NewClientWithAddressContext(ctx, fmt.Sprintf("%s:%s", DAPR_HOST, DAPR_PORT))
-	if err != nil {
-		panic(err)
-	}
-	daprClient = dc
-	defer daprClient.Close()
 }
 
 // Handle an HTTP Request.

@@ -3,6 +3,7 @@ kind: Deployment
 metadata:
   name: read-values
 spec:
+  replicas: 1
   selector:
     matchLabels:
       app: read-values
@@ -13,7 +14,6 @@ spec:
       annotations:
         dapr.io/enabled: "true"
         dapr.io/app-id: "read-values"
-        dapr.io/app-port: "8080"
     spec:
       containers:
         - name: read-values
@@ -27,6 +27,7 @@ spec:
               cpu: "500m"
           ports:
             - containerPort: 8080
+          imagePullPolicy: IfNotPresent
 ---
 apiVersion: v1
 kind: Service
@@ -38,12 +39,14 @@ spec:
   ports:
     - port: 80
       targetPort: 8080
+  type: LoadBalancer
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: subscriber
 spec:
+  replicas: 1
   selector:
     matchLabels:
       app: subscriber
@@ -61,6 +64,7 @@ spec:
               cpu: "500m"
           ports:
             - containerPort: 8080
+          imagePullPolicy: IfNotPresent
 ---
 apiVersion: v1
 kind: Service
@@ -72,12 +76,14 @@ spec:
   ports:
     - port: 80
       targetPort: 8080
+  type: LoadBalancer
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: write-values
 spec:
+  replicas: 1
   selector:
     matchLabels:
       app: write-values
@@ -88,7 +94,6 @@ spec:
       annotations:
         dapr.io/enabled: "true"
         dapr.io/app-id: "write-values"
-        dapr.io/app-port: "8080"
     spec:
       containers:
         - name: write-values
@@ -102,6 +107,7 @@ spec:
               cpu: "500m"
           ports:
             - containerPort: 8080
+          imagePullPolicy: IfNotPresent
 ---
 apiVersion: v1
 kind: Service
@@ -113,3 +119,4 @@ spec:
   ports:
     - port: 80
       targetPort: 8080
+  type: LoadBalancer

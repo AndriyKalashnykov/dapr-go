@@ -16,7 +16,7 @@ var (
 	daprClient       dapr.Client
 	ctx              context.Context
 	STATE_STORE_NAME = GetenvOrDefault("STATE_STORE_NAME", "statestore")
-	DAPR_HOST        = GetenvOrDefault("DAPR_HOST", "")
+	DAPR_HOST        = GetenvOrDefault("DAPR_HOST", "127.0.0.1")
 	DAPR_PORT        = GetenvOrDefault("DAPR_PORT", "50001")
 	PUB_SUB_NAME     = GetenvOrDefault("PUB_SUB_NAME", "notifications-pubsub")
 	PUB_SUB_TOPIC    = GetenvOrDefault("PUB_SUB_TOPIC", "notifications")
@@ -27,19 +27,24 @@ type MyValues struct {
 }
 
 func main() {
+
+	ctx = context.Background()
+	//dc, err := dapr.NewClientWithAddressContext(ctx, fmt.Sprintf("%s:%s", DAPR_HOST, DAPR_PORT))
+	dc, err := dapr.NewClient()
+	if err != nil {
+		log.Fatalf("dapr client: NewClient: %s", err)
+	}
+	//if err != nil {
+	//	panic(err)
+	//}
+	daprClient = dc
+	defer daprClient.Close()
+
 	port := GetenvOrDefault("APP_PORT", "8080")
 	r := chi.NewRouter()
 	r.Post("/", Handle)
 	log.Printf("Starting Write Values App in Port: %s", port)
 	http.ListenAndServe(":"+port, r)
-
-	ctx = context.Background()
-	dc, err := dapr.NewClientWithAddressContext(ctx, fmt.Sprintf("%s:%s", DAPR_HOST, DAPR_PORT))
-	if err != nil {
-		panic(err)
-	}
-	daprClient = dc
-	defer daprClient.Close()
 }
 
 func Handle(res http.ResponseWriter, req *http.Request) {

@@ -31,5 +31,8 @@ if [ -z "${DAPRGO_APP}" ]; then
     exit 1
 fi
 
+
+kubectl delete -n ${DAPRGO_NS} -f $SCRIPT_PARENT_DIR/k8s/apps
+kubectl delete -n ${DAPRGO_NS} -f $SCRIPT_PARENT_DIR/k8s/dapr
 helm uninstall redis --namespace ${DAPRGO_NS}
 kubectl delete secret redis-password-secret --namespace ${DAPRGO_NS}

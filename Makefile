@@ -141,7 +141,7 @@ undeploy-dapr:
 	helm uninstall dapr-dashboard --namespace dapr-system
 
 #deploy-apps: @ deploy apps
-deploy-apps:
+deploy-apps: image-build
 	./scripts/deploy-apps.sh
 
 #undeploy-apps: @ undeploy apps
