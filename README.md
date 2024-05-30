@@ -84,5 +84,6 @@ helm uninstall redis --namespace dapr-go
 
 ### Referencec
 
-[go-sdk examples](https://github.com/dapr/go-sdk/tree/main/examples/pubsub)
-[dapr-shared-examples](https://github.com/salaboy/dapr-shared-examples)
+* [Reference secrets in components - Non-default namespaces](https://docs.dapr.io/operations/components/component-secrets/#non-default-namespaces)
+* [go-sdk examples](https://github.com/dapr/go-sdk/tree/main/examples/pubsub)
+* [dapr-shared-examples](https://github.com/salaboy/dapr-shared-examples)

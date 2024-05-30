@@ -33,6 +33,7 @@ fi
 
 
 kubectl delete -n ${DAPRGO_NS} -f $SCRIPT_PARENT_DIR/k8s/apps
-kubectl delete -n ${DAPRGO_NS} -f $SCRIPT_PARENT_DIR/k8s/dapr
+kubectl delete -n ${DAPRGO_NS} -f $SCRIPT_PARENT_DIR/k8s/dapr/components
+kubectl delete -n ${DAPRGO_NS} -f $SCRIPT_PARENT_DIR/k8s/dapr/permissions
 helm uninstall redis --namespace ${DAPRGO_NS}
 kubectl delete secret redis-password-secret --namespace ${DAPRGO_NS}
