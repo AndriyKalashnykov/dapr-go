@@ -49,5 +49,5 @@ helm upgrade --install redis bitnami/redis --wait --namespace ${DAPRGO_NS} --set
 kubectl apply -n ${DAPRGO_NS} -f $SCRIPT_PARENT_DIR/k8s/dapr --server-side=true --force-conflicts
 kubectl apply -n ${DAPRGO_NS} -f $SCRIPT_PARENT_DIR/k8s/apps --server-side=true --force-conflicts
 
-
+#kubectl logs -n dapr-go write-values-cf6f6fd76-fxtlp --all-containers=true -f
 

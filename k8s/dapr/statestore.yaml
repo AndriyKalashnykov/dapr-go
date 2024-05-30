@@ -10,8 +10,9 @@ spec:
     - name: redisHost
       value: redis-master.dapr-go.svc.cluster.local:6379
     - name: redisPassword
-      secretKeyRef:
-        name: redis
-        key: redis-password
+      value: RedisPassword
+#      secretKeyRef:
+#        name: redis
+#        key: redis-password
 auth:
   secretStore: kubernetes
