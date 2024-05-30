@@ -121,14 +121,29 @@ version:
 
 #image-build: @ Build a Docker image
 image-build: build
-	@cd read-values && docker build -t andriykalashnykov/ambient-read-values:0.0.1 .
-	@cd subscriber && docker build -t andriykalashnykov/ambient-subscriber:0.0.1 .
-	@cd write-values && docker build -t andriykalashnykov/ambient-write-values:0.0.1 .
+	@cd read-values && docker build -t andriykalashnykov/dapr-go-read-values:v0.0.1 .
+	@cd subscriber && docker build -t andriykalashnykov/dapr-go-subscriber:v0.0.1 .
+	@cd write-values && docker build -t andriykalashnykov/dapr-go-write-values:v0.0.1 .
 
-#deploy-dapr: @ deploy dapr
+#deploy-dapr: @ Deploy DAPR
 deploy-dapr:
-	./scripts/deploy-dapr.sh
+	helm repo add dapr https://dapr.github.io/helm-charts/ && \
+	helm repo update && \
+	helm upgrade --install dapr dapr/dapr --set version=1.13.4 --namespace dapr-system --create-namespace --wait && \
+	helm upgrade --install dapr-dashboard dapr/dapr-dashboard --set version=1.13.4 --namespace dapr-system --set serviceType=LoadBalancer --wait && \
+	kubectl get pods --namespace dapr-system
+# kubectl port-forward svc/dapr-dashboard 8080:8080 -n dapr-system
+# xdg-open http://localhost:8080
+
+#undeploy-dapr: @ Undeploy DAPR
+undeploy-dapr:
+	helm uninstall dapr --namespace dapr-system && \
+	helm uninstall dapr-dashboard --namespace dapr-system
 
 #deploy-apps: @ deploy apps
 deploy-apps:
 	./scripts/deploy-apps.sh
+
+#undeploy-apps: @ undeploy apps
+undeploy-apps:
+	./scripts/undeploy-apps.sh

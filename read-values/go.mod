@@ -1,4 +1,4 @@
-module github.com/andriykalashnykov/ambient-read-values
+module github.com/andriykalashnykov/dapr-go-read-values
 
 go 1.22
 

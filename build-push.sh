@@ -20,6 +20,6 @@ build_and_deploy() {
     cd ..
 }
 
-build_and_deploy "read-values" "andriykalashnykov/ambient-read-values"
-build_and_deploy "subscriber" "andriykalashnykov/ambient-subscriber"
-build_and_deploy "write-values" "andriykalashnykov/ambient-write-values"
+build_and_deploy "read-values" "andriykalashnykov/dapr-go-read-values"
+build_and_deploy "subscriber" "andriykalashnykov/dapr-go-subscriber"
+build_and_deploy "write-values" "andriykalashnykov/dapr-go-write-values"

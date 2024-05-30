@@ -10,10 +10,14 @@ spec:
     metadata:
       labels:
         app: read-values
+      annotations:
+        dapr.io/enabled: "true"
+        dapr.io/app-id: "read-values"
+        dapr.io/app-port: "8080"
     spec:
       containers:
       - name: read-values
-        image: andriykalashnykov/ambient-read-values:0.0.1
+        image: andriykalashnykov/dapr-go-read-values:v0.0.1
         env: 
         - name: DAPR_HOST
           value: my-ambient
@@ -50,7 +54,7 @@ spec:
     spec:
       containers:
       - name: subscriber
-        image: andriykalashnykov/ambient-subscriber:0.0.1
+        image: andriykalashnykov/dapr-go-subscriber:v0.0.1
         resources:
           limits:
             memory: "128Mi"
@@ -81,10 +85,14 @@ spec:
     metadata:
       labels:
         app: write-values
+      annotations:
+        dapr.io/enabled: "true"
+        dapr.io/app-id: "write-values"
+        dapr.io/app-port: "8080"
     spec:
       containers:
       - name: write-values
-        image: andriykalashnykov/ambient-write-values:0.0.1
+        image: andriykalashnykov/dapr-go-write-values:v0.0.1
         env:
         - name: DAPR_HOST
           value: my-ambient

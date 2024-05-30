@@ -1,4 +1,4 @@
-module github.com/andriykalashnykov/ambient-subscriber
+module github.com/andriykalashnykov/dapr-go-subscriber
 
 go 1.22
 

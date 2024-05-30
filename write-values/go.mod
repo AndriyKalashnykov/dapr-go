@@ -1,4 +1,4 @@
-module github.com/andriykalashnykov/ambient-write-values
+module github.com/andriykalashnykov/dapr-go-write-values
 
 go 1.22
 

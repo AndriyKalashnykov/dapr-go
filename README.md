@@ -64,11 +64,16 @@ helm uninstall dapr-dashboard --namespace dapr-system
 helm repo add bitnami https://charts.bitnami.com/bitnami
 helm repo update
 kubectl create ns dapr-go
-helm install redis bitnami/redis --namespace=dapr-go
-export export REDIS_PASSWORD=$(kubectl get secret --namespace dapr-go redis -o jsonpath="{.data.redis-password}" | base64 -d)
-kubectl run --namespace dapr-go redis-client --restart='Never' --env REDIS_PASSWORD=$REDIS_PASSWORD  --image docker.io/bitnami/redis:7.2.4-debian-11-r3 --command -- sleep infinity
+export REDIS_PASSWORD=$(kubectl get secret --namespace dapr-go redis-password-secret -o jsonpath="{.data.redis-password}" | base64 -d)
+echo $REDIS_PASSWORD
+helm upgrade --install redis bitnami/redis --namespace ${DAPRGO_NS} --set auth.existingSecret=redis-password-secret --set architecture=standalone --set replica.replicaCount=1
+kubectl run --namespace dapr-go redis-client --restart='Never'  --env REDIS_PASSWORD=$REDIS_PASSWORD  --image docker.io/bitnami/redis:7.2.5-debian-12-r0 --command -- sleep infinity
 kubectl exec --tty -i redis-client --namespace dapr-go -- bash
 REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli -h redis-master
+
+kubectl port-forward --namespace dapr-go svc/redis-master 6379:6379 &
+REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli -h 127.0.0.1 -p 6379
+
 
 ```
 
