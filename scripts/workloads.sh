@@ -37,6 +37,7 @@ if [[ $SCRIPT_ACTION == "deploy" ]]; then
   minikube image load andriykalashnykov/dapr-go-read-values:v0.0.1 --profile ${MINIKUBE_PROFILE}
   minikube image load andriykalashnykov/dapr-go-subscriber:v0.0.1 --profile ${MINIKUBE_PROFILE}
   minikube image load andriykalashnykov/dapr-go-write-values:v0.0.1 --profile ${MINIKUBE_PROFILE}
+  minikube image load ko.local/dapr-go-frontendsvc:latest --profile ${MINIKUBE_PROFILE}
   minikube image ls --profile ${MINIKUBE_PROFILE}  --format table
 
   kubectl apply -n ${DAPRGO_NS} -f $SCRIPT_PARENT_DIR/k8s/dapr/components --server-side=true --force-conflicts
