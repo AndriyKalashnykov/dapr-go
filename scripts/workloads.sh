@@ -44,7 +44,6 @@ if [[ $SCRIPT_ACTION == "deploy" ]]; then
 
   #kubectl logs -n dapr-go write-values-cf6f6fd76-fxtlp --all-containers=true -f
 elif [[ $SCRIPT_ACTION == "undeploy"  ]]; then
-  kubectl delete -n ${DAPRGO_NS} -f $SCRIPT_PARENT_DIR/k8s/dapr/permissions/dapr-permissions.yaml && \
-  helm uninstall dapr --namespace dapr-system && \
-  helm uninstall dapr-dashboard --namespace dapr-system
+  kubectl delete --ignore-not-found=true -n ${DAPRGO_NS} -f $SCRIPT_PARENT_DIR/k8s/apps && \
+  kubectl delete --ignore-not-found=true -f $SCRIPT_PARENT_DIR/k8s/dapr/components
 fi

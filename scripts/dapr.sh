@@ -38,8 +38,10 @@ if [[ $SCRIPT_ACTION == "deploy" ]]; then
   kubectl create namespace ${DAPRGO_NS} --dry-run=client -o yaml | kubectl apply -f -  && \
   kubectl apply -f $SCRIPT_PARENT_DIR/k8s/dapr/permissions/dapr-permissions.yaml --server-side=true --force-conflicts && \
   kubectl get pods --namespace dapr-system
+#  kubectl port-forward -n dapr-system svc/dapr-dashboard 8080:8080
+#  xdg-open http://localhost:8080/overview
 elif [[ $SCRIPT_ACTION == "undeploy"  ]]; then
-  kubectl delete -n ${DAPRGO_NS} -f ./k8s/dapr/permissions/dapr-permissions.yaml && \
+  kubectl delete --ignore-not-found=true -n ${DAPRGO_NS} -f ./k8s/dapr/permissions/dapr-permissions.yaml && \
   helm uninstall dapr --namespace dapr-system && \
   helm uninstall dapr-dashboard --namespace dapr-system
 fi

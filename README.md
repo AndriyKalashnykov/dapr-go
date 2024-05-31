@@ -16,7 +16,7 @@ Subscriber just listen by notifications sent from [write-values](#write-values).
 Write-values is responsible for save values into `redis` through `dapr-ambient`.
 
 ```
-curl -X POST http://<host>:<port>?value=90
+curl -X POST http://192.168.200.5:8080?value=90
 ```
 
 ### read-values

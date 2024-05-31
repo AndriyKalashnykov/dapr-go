@@ -131,13 +131,13 @@ image-build: build
 
 #deploy-dapr: @ Deploy DAPR
 deploy-dapr:
-	./scripts/deploy-dapr.sh
+	./scripts/dapr.sh deploy
 # kubectl port-forward svc/dapr-dashboard 8080:8080 -n dapr-system
 # xdg-open http://localhost:8080
 
 #undeploy-dapr: @ Undeploy DAPR
 undeploy-dapr:
-	./scripts/undeploy-dapr.sh
+	./scripts/dapr.sh undeploy
 
 #deploy-components: @ Deploy Redis, Kafka, etc.
 deploy-components:

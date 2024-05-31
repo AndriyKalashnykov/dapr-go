@@ -39,5 +39,5 @@ if [[ $SCRIPT_ACTION == "deploy" ]]; then
 
 elif [[ $SCRIPT_ACTION == "undeploy"  ]]; then
 	helm uninstall redis --namespace ${DAPRGO_NS} && \
-	kubectl delete secret redis-password-secret --namespace ${DAPRGO_NS}
+	kubectl delete secret redis-password-secret --namespace ${DAPRGO_NS} --ignore-not-found=true
 fi
