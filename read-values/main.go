@@ -53,8 +53,11 @@ func Handle(res http.ResponseWriter, req *http.Request) {
 
 	result, err := daprClient.GetState(ctx, STATE_STORE_NAME, "values", nil)
 	if err != nil {
-		panic(err)
+		log.Fatalf("error: %s", err)
 	}
+	//if err != nil {
+	//	panic(err)
+	//}
 	myValues := MyValues{}
 	json.Unmarshal(result.Value, &myValues)
 

@@ -14,7 +14,6 @@ import (
 
 var (
 	daprClient       dapr.Client
-	ctx              context.Context
 	STATE_STORE_NAME = GetenvOrDefault("STATE_STORE_NAME", "statestore")
 	DAPR_HOST        = GetenvOrDefault("DAPR_HOST", "127.0.0.1")
 	DAPR_PORT        = GetenvOrDefault("DAPR_PORT", "50001")
@@ -28,15 +27,13 @@ type MyValues struct {
 
 func main() {
 
-	ctx = context.Background()
-	//dc, err := dapr.NewClientWithAddressContext(ctx, fmt.Sprintf("%s:%s", DAPR_HOST, DAPR_PORT))
+	//dc, err := dapr.NewClientWithAddressContext(context.Background(), fmt.Sprintf("%s:%s", DAPR_HOST, DAPR_PORT))
 	dc, err := dapr.NewClient()
 	if err != nil {
 		log.Fatalf("dapr client: NewClient: %s", err)
+		//panic(err)
 	}
-	//if err != nil {
-	//	panic(err)
-	//}
+
 	daprClient = dc
 	defer daprClient.Close()
 
@@ -50,31 +47,43 @@ func main() {
 func Handle(res http.ResponseWriter, req *http.Request) {
 
 	value := req.URL.Query().Get("value")
-
-	result, _ := daprClient.GetState(ctx, STATE_STORE_NAME, "values", nil)
+	fmt.Println("Got data:", value)
 	myValues := MyValues{}
-	if result.Value != nil {
-		json.Unmarshal(result.Value, &myValues)
-	}
 
-	if myValues.Values == nil || len(myValues.Values) == 0 {
-		myValues.Values = []string{value}
+	result, err := daprClient.GetState(req.Context(), STATE_STORE_NAME, "values", nil)
+
+	if err == nil {
+		fmt.Println("Got state")
+
+		if result.Value != nil {
+			json.Unmarshal(result.Value, &myValues)
+		}
+
+		if myValues.Values == nil || len(myValues.Values) == 0 {
+			myValues.Values = []string{value}
+		} else {
+			myValues.Values = append(myValues.Values, value)
+		}
+
+		fmt.Println("before Marshlling")
+		jsonData, err := json.Marshal(myValues)
+		fmt.Println("after Marshlling")
+
+		err = daprClient.SaveState(req.Context(), STATE_STORE_NAME, "values", jsonData, nil)
+		fmt.Println("Saved state")
+		if err != nil {
+			log.Fatalf("error: %s", err)
+		}
+		//if err != nil {
+		//	panic(err)
+		//}
+
+		daprClient.PublishEvent(context.Background(), PUB_SUB_NAME, PUB_SUB_TOPIC, []byte(value))
+
+		fmt.Println("Published data:", value)
 	} else {
-		myValues.Values = append(myValues.Values, value)
+		respondWithJSON(res, http.StatusOK, myValues)
 	}
-
-	jsonData, err := json.Marshal(myValues)
-
-	err = daprClient.SaveState(ctx, STATE_STORE_NAME, "values", jsonData, nil)
-	if err != nil {
-		panic(err)
-	}
-
-	daprClient.PublishEvent(context.Background(), PUB_SUB_NAME, PUB_SUB_TOPIC, []byte(value))
-
-	fmt.Println("Published data:", value)
-
-	respondWithJSON(res, http.StatusOK, myValues)
 
 }
 

@@ -35,7 +35,7 @@ if [[ $SCRIPT_ACTION == "deploy" ]]; then
   kubectl create -n ${DAPRGO_NS} secret generic redis-password-secret --from-literal=redis-password=RedisPassword  && \
   export REDIS_PASSWORD=$(kubectl get secret --namespace ${DAPRGO_NS} redis-password-secret -o jsonpath="{.data.redis-password}" | base64 -d)  && \
   echo $REDIS_PASSWORD  && \
-  helm upgrade --install redis bitnami/redis --wait --namespace ${DAPRGO_NS} --set auth.existingSecret=redis-password-secret --set architecture=standalone --set replica.replicaCount=1
+  helm upgrade --install redis bitnami/redis --wait --namespace ${DAPRGO_NS} --set auth.existingSecret=redis-password-secret --set master.persistence.enabled=false --set master.service.type=LoadBalancer --set master.conunt=1 --set replica.replicaCount=1 --set master.disableCommands=null
 
 elif [[ $SCRIPT_ACTION == "undeploy"  ]]; then
 	helm uninstall redis --namespace ${DAPRGO_NS} && \

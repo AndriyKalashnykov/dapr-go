@@ -72,9 +72,12 @@ func main() {
 	log.Printf("Starting Subscriber in Port: %s", port)
 	// Start the server; this is a blocking call
 	err := http.ListenAndServe(":"+port, r)
-	if err != http.ErrServerClosed {
-		log.Panic(err)
+	if err != nil {
+		log.Fatalf("error: %s", err)
 	}
+	//if err != http.ErrServerClosed {
+	//	log.Panic(err)
+	//}
 }
 
 func GetenvOrDefault(envName, defaultValue string) string {

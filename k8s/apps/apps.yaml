@@ -94,6 +94,7 @@ spec:
       annotations:
         dapr.io/enabled: "true"
         dapr.io/app-id: "write-values"
+        dapr.io/port: "8080"
     spec:
       containers:
         - name: write-values
