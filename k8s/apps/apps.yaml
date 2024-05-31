@@ -14,6 +14,8 @@ spec:
       annotations:
         dapr.io/enabled: "true"
         dapr.io/app-id: "read-values"
+        dapr.io/app-port: "8080"
+        dapr.io/log-level: "debug"
     spec:
       containers:
         - name: read-values
@@ -94,7 +96,8 @@ spec:
       annotations:
         dapr.io/enabled: "true"
         dapr.io/app-id: "write-values"
-        dapr.io/port: "8080"
+        dapr.io/app-port: "8080"
+        dapr.io/log-level: "debug"
     spec:
       containers:
         - name: write-values
@@ -102,6 +105,8 @@ spec:
           env:
             - name: DAPR_PORT
               value: "50001"
+            - name: APP_PORT
+              value: "8080"
           resources:
             limits:
               memory: "128Mi"

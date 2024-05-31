@@ -39,11 +39,12 @@ if [[ $SCRIPT_ACTION == "deploy" ]]; then
   minikube image load andriykalashnykov/dapr-go-write-values:v0.0.1 --profile ${MINIKUBE_PROFILE}
   minikube image ls --profile ${MINIKUBE_PROFILE}  --format table
 
-  kubectl apply -f $SCRIPT_PARENT_DIR/k8s/dapr/components --server-side=true --force-conflicts
+  kubectl apply -n ${DAPRGO_NS} -f $SCRIPT_PARENT_DIR/k8s/dapr/components --server-side=true --force-conflicts
   kubectl apply -n ${DAPRGO_NS} -f $SCRIPT_PARENT_DIR/k8s/apps --server-side=true --force-conflicts
 
-  #kubectl logs -n dapr-go write-values-cf6f6fd76-fxtlp --all-containers=true -f
+  # kubectl logs -n dapr-go write-values-cf6f6fd76-fxtlp --all-containers=true -f
+  # kubectl logs -n dapr-go read-values-55764dcc8d-2s28h --all-containers=true -f
 elif [[ $SCRIPT_ACTION == "undeploy"  ]]; then
   kubectl delete --ignore-not-found=true -n ${DAPRGO_NS} -f $SCRIPT_PARENT_DIR/k8s/apps && \
-  kubectl delete --ignore-not-found=true -f $SCRIPT_PARENT_DIR/k8s/dapr/components
+  kubectl delete -n ${DAPRGO_NS} --ignore-not-found=true -f $SCRIPT_PARENT_DIR/k8s/dapr/components
 fi

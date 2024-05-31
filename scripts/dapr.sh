@@ -41,7 +41,7 @@ if [[ $SCRIPT_ACTION == "deploy" ]]; then
 #  kubectl port-forward -n dapr-system svc/dapr-dashboard 8080:8080
 #  xdg-open http://localhost:8080/overview
 elif [[ $SCRIPT_ACTION == "undeploy"  ]]; then
-  kubectl delete --ignore-not-found=true -n ${DAPRGO_NS} -f ./k8s/dapr/permissions/dapr-permissions.yaml && \
+  kubectl delete --ignore-not-found=true -f ./k8s/dapr/permissions/dapr-permissions.yaml && \
   helm uninstall dapr --namespace dapr-system && \
   helm uninstall dapr-dashboard --namespace dapr-system
 fi

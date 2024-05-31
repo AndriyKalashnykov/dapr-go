@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -14,7 +13,6 @@ import (
 
 var (
 	daprClient       dapr.Client
-	ctx              context.Context
 	STATE_STORE_NAME = GetenvOrDefault("STATE_STORE_NAME", "statestore")
 	DAPR_HOST        = GetenvOrDefault("DAPR_HOST", "127.0.0.1")
 	DAPR_PORT        = GetenvOrDefault("DAPR_PORT", "50001")
@@ -26,15 +24,11 @@ type MyValues struct {
 
 func main() {
 
-	ctx = context.Background()
 	//dc, err := dapr.NewClientWithAddressContext(ctx, fmt.Sprintf("%s:%s", DAPR_HOST, DAPR_PORT))
 	dc, err := dapr.NewClient()
 	if err != nil {
 		log.Fatalf("dapr client: NewClient: %s", err)
 	}
-	//if err != nil {
-	//	panic(err)
-	//}
 	daprClient = dc
 	defer daprClient.Close()
 
@@ -51,15 +45,15 @@ func main() {
 // Handle an HTTP Request.
 func Handle(res http.ResponseWriter, req *http.Request) {
 
-	result, err := daprClient.GetState(ctx, STATE_STORE_NAME, "values", nil)
+	result, err := daprClient.GetState(req.Context(), STATE_STORE_NAME, "values", nil)
 	if err != nil {
-		log.Fatalf("error: %s", err)
+		log.Println("error: %s", err)
 	}
-	//if err != nil {
-	//	panic(err)
-	//}
+
 	myValues := MyValues{}
 	json.Unmarshal(result.Value, &myValues)
+
+	log.Printf("Got values %s/n", myValues)
 
 	var total int
 	var count int

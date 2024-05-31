@@ -73,11 +73,8 @@ func main() {
 	// Start the server; this is a blocking call
 	err := http.ListenAndServe(":"+port, r)
 	if err != nil {
-		log.Fatalf("error: %s", err)
+		log.Println("error: %s", err)
 	}
-	//if err != http.ErrServerClosed {
-	//	log.Panic(err)
-	//}
 }
 
 func GetenvOrDefault(envName, defaultValue string) string {

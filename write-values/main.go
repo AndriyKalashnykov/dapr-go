@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/go-chi/chi/v5"
@@ -50,11 +49,12 @@ func Handle(res http.ResponseWriter, req *http.Request) {
 	fmt.Println("Got data:", value)
 	myValues := MyValues{}
 
+	if req.Context() == nil {
+		fmt.Println("Context is nil")
+	}
 	result, err := daprClient.GetState(req.Context(), STATE_STORE_NAME, "values", nil)
 
 	if err == nil {
-		fmt.Println("Got state")
-
 		if result.Value != nil {
 			json.Unmarshal(result.Value, &myValues)
 		}
@@ -65,24 +65,18 @@ func Handle(res http.ResponseWriter, req *http.Request) {
 			myValues.Values = append(myValues.Values, value)
 		}
 
-		fmt.Println("before Marshlling")
 		jsonData, err := json.Marshal(myValues)
-		fmt.Println("after Marshlling")
 
 		err = daprClient.SaveState(req.Context(), STATE_STORE_NAME, "values", jsonData, nil)
-		fmt.Println("Saved state")
 		if err != nil {
-			log.Fatalf("error: %s", err)
+			log.Println("error: %s", err)
 		}
-		//if err != nil {
-		//	panic(err)
-		//}
 
-		daprClient.PublishEvent(context.Background(), PUB_SUB_NAME, PUB_SUB_TOPIC, []byte(value))
-
-		fmt.Println("Published data:", value)
+		daprClient.PublishEvent(req.Context(), PUB_SUB_NAME, PUB_SUB_TOPIC, []byte(value))
+		log.Printf("Published data:", jsonData)
 	} else {
 		respondWithJSON(res, http.StatusOK, myValues)
+		log.Println("error: %s", err)
 	}
 
 }

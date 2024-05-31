@@ -24,7 +24,7 @@ curl -X POST http://192.168.200.5:80?value=90
 Read-values reads all values created by `write-values` and returns an average.
 
 ```
-curl http://<host>:<port>
+curl http://192.168.200.4:80
 ```
 
 ## Installation
@@ -83,8 +83,7 @@ To connect to your Redis&reg; server:
 1. Run a Redis&reg; pod that you can use as a client:
    kubectl run --namespace dapr-go redis-client --restart='Never'  --env REDIS_PASSWORD=$REDIS_PASSWORD  --image docker.io/bitnami/redis:7.2.5-debian-12-r0 --command -- sleep infinity
    Use the following command to attach to the pod:
-   kubectl exec --tty -i redis-client \
-   --namespace dapr-go -- bash
+   kubectl exec --tty -i redis-client --namespace dapr-go -- bash
 2. Connect using the Redis&reg; CLI:
    REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli -h redis-master
 To connect to your database from outside the cluster execute the following commands:
