@@ -137,7 +137,7 @@ kind load docker-image ko.local/frontendsvc:latest --name dapr-cluster
 
 The configurations to run this example you will need:
 * A Kubernetes [Deployment](../k8s/apps/frontend.yaml) manifest 
-* A Dapr component for a [Redis data store](./manifest/redis-store.yaml).
+* A Dapr component for a [Redis data store](frontendsvc/dapr/redis-store.yaml).
 
 Because the code invokes the Dapr API, the application must be deployed along with the Dapr sidecar at runtime. You can read more about running Dapr-enabled applications on Kubernetes [here](https://docs.dapr.io/operations/hosting/kubernetes/).
 
