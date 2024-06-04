@@ -90,7 +90,6 @@ build:
 	@export GOFLAGS=$(GOFLAGS); export CGO_ENABLED=0; GOOS=linux GOARCH=amd64 go build -o ./read-values/main ./read-values/main.go
 	@export GOFLAGS=$(GOFLAGS); export CGO_ENABLED=0; GOOS=linux GOARCH=amd64 go build -o ./subscriber/main ./subscriber/main.go
 	@export GOFLAGS=$(GOFLAGS); export CGO_ENABLED=0; GOOS=linux GOARCH=amd64 go build -o ./write-values/main ./write-values/main.go
-	@cd ./state/frontendsvc && ko build --local -B --platform=linux/amd64 .
 
 #run: @ Run binary
 run:
@@ -129,6 +128,7 @@ image-build: build
 	@cd read-values && docker build -t andriykalashnykov/dapr-go-read-values:v0.0.1 .
 	@cd subscriber && docker build -t andriykalashnykov/dapr-go-subscriber:v0.0.1 .
 	@cd write-values && docker build -t andriykalashnykov/dapr-go-write-values:v0.0.1 .
+	@cd ./state/frontendsvc && ko build --local -B --platform=linux/amd64 .
 
 #deploy-dapr: @ Deploy DAPR
 deploy-dapr:
