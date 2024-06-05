@@ -90,6 +90,7 @@ build:
 	@export GOFLAGS=$(GOFLAGS); export CGO_ENABLED=0; GOOS=linux GOARCH=amd64 go build -o ./read-values/main ./read-values/main.go
 	@export GOFLAGS=$(GOFLAGS); export CGO_ENABLED=0; GOOS=linux GOARCH=amd64 go build -o ./subscriber/main ./subscriber/main.go
 	@export GOFLAGS=$(GOFLAGS); export CGO_ENABLED=0; GOOS=linux GOARCH=amd64 go build -o ./write-values/main ./write-values/main.go
+	@cd ./state/frontendsvc && export GOFLAGS=$(GOFLAGS); export CGO_ENABLED=0; GOOS=linux GOARCH=amd64 go build -o ./main ./main.go
 
 #run: @ Run binary
 run:
@@ -100,6 +101,14 @@ get:
 	@cd read-values && export GOFLAGS=$(GOFLAGS); go get . ; go mod tidy
 	@cd subscriber && export GOFLAGS=$(GOFLAGS); go get . ; go mod tidy
 	@cd write-values && export GOFLAGS=$(GOFLAGS); go get . ; go mod tidy
+	@cd state/frontendsvc && export GOFLAGS=$(GOFLAGS); go get . ; go mod tidy
+
+#update: @ Update dependencies to latest versions
+update:
+	@cd read-values && export GOFLAGS=$(GOFLAGS); go get -u; go mod tidy
+	@cd subscriber && export GOFLAGS=$(GOFLAGS); go get -u; go mod tidy
+	@cd write-values && export GOFLAGS=$(GOFLAGS); go get -u; go mod tidy
+	@cd state/frontendsvc && export GOFLAGS=$(GOFLAGS); go get -u; go mod tidy
 
 #release: @ Create and push a new tag
 release: build
@@ -113,22 +122,16 @@ release: build
 	@git push
 	@echo "Done."
 
-#update: @ Update dependencies to latest versions
-update:
-	@cd read-values && export GOFLAGS=$(GOFLAGS); go get -u; go mod tidy
-	@cd subscriber && export GOFLAGS=$(GOFLAGS); go get -u; go mod tidy
-	@cd write-values && export GOFLAGS=$(GOFLAGS); go get -u; go mod tidy
-
 #version: @ Print current version(tag)
 version:
 	@echo $(shell git describe --tags --abbrev=0)
 
 #image-build: @ Build a Docker image
 image-build: build
-	@cd read-values && docker build -t andriykalashnykov/dapr-go-read-values:v0.0.1 .
-	@cd subscriber && docker build -t andriykalashnykov/dapr-go-subscriber:v0.0.1 .
-	@cd write-values && docker build -t andriykalashnykov/dapr-go-write-values:v0.0.1 .
-	@cd ./state/frontendsvc && ko build --local -B --platform=linux/amd64,linux/arm64 .
+	@cd read-values && DOCKER_BUILDKIT=1 docker build -t andriykalashnykov/dapr-go-read-values:v0.0.1 --build-arg TARGETPLATFORM=linux/amd64 .
+#	@cd subscriber && DOCKER_BUILDKIT=1 docker build -t andriykalashnykov/dapr-go-subscriber:v0.0.1 .
+#	@cd write-values && DOCKER_BUILDKIT=1 docker build -t andriykalashnykov/dapr-go-write-values:v0.0.1 .
+#	@cd ./state/frontendsvc && ko build --local -B --platform=linux/amd64,linux/arm64 .
 
 #deploy-dapr: @ Deploy DAPR
 deploy-dapr:

@@ -3,12 +3,12 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/andriykalashnykov/dapr-go-frontendsvc/internal/types"
 	"log"
 	"math/rand"
 	"net/http"
 	"os"
 
-	"github.com/andriykalashnykov/dapr-go-frontendsvc/types"
 	dapr "github.com/dapr/go-sdk/client"
 )
 
