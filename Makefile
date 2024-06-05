@@ -129,9 +129,10 @@ version:
 #image-build: @ Build a Docker image
 image-build: build
 	@cd read-values && DOCKER_BUILDKIT=1 docker build -t andriykalashnykov/dapr-go-read-values:v0.0.1 --build-arg TARGETPLATFORM=linux/amd64 .
-#	@cd subscriber && DOCKER_BUILDKIT=1 docker build -t andriykalashnykov/dapr-go-subscriber:v0.0.1 .
-#	@cd write-values && DOCKER_BUILDKIT=1 docker build -t andriykalashnykov/dapr-go-write-values:v0.0.1 .
-#	@cd ./state/frontendsvc && ko build --local -B --platform=linux/amd64,linux/arm64 .
+	@cd subscriber && DOCKER_BUILDKIT=1 docker build -t andriykalashnykov/dapr-go-subscriber:v0.0.1 .
+	@cd write-values && DOCKER_BUILDKIT=1 docker build -t andriykalashnykov/dapr-go-write-values:v0.0.1 .
+	@cd state/frontendsvc && DOCKER_BUILDKIT=1 docker build -t andriykalashnykov/dapr-go-frontendsvc:v0.0.1 .
+#	@cd state/frontendsvc && ko build --local -B --platform=linux/amd64,linux/arm64 .
 
 #deploy-dapr: @ Deploy DAPR
 deploy-dapr:
