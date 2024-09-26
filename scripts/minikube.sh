@@ -78,6 +78,7 @@ if [[ $SCRIPT_ACTION == "start" ]]; then
   if [ "${found}" == "" ]; then
     echo "Creating Minikube profile - ${MINIKUBE_PROFILE}"
     ## if not enought CPUs (4 seem to be minimum) or RAM given to minikube won't start saying smth. like "cluster module not found" or so
+    ##     --kubernetes-version=v1.30.0 \
     minikube start \
     --profile ${MINIKUBE_PROFILE} \
     --nodes ${MINIKUBE_NODES} \
@@ -87,7 +88,6 @@ if [[ $SCRIPT_ACTION == "start" ]]; then
     --vm-driver=${MINIKUBE_VM_DRIVER} \
     --static-ip ${MINIKUBE_STATIC_IP} \
     --insecure-registry=localhost:5000 \
-    --kubernetes-version=v1.30.0 \
     --addons=metallb \
     --addons=ingress \
     --addons=ingress-dns \
