@@ -73,7 +73,7 @@ func main() {
 	// Start the server; this is a blocking call
 	err := http.ListenAndServe(":"+port, r)
 	if err != nil {
-		log.Println("error: %s", err)
+		log.Println("error:", err)
 	}
 }
 

@@ -69,14 +69,14 @@ func Handle(res http.ResponseWriter, req *http.Request) {
 
 		err = daprClient.SaveState(req.Context(), STATE_STORE_NAME, "values", jsonData, nil)
 		if err != nil {
-			log.Println("error: %s", err)
+			log.Println("error:", err)
 		}
 
 		daprClient.PublishEvent(req.Context(), PUB_SUB_NAME, PUB_SUB_TOPIC, []byte(value))
-		log.Printf("Published data:", jsonData)
+		log.Printf("Published data: %s", jsonData)
 	} else {
 		respondWithJSON(res, http.StatusOK, myValues)
-		log.Println("error: %s", err)
+		log.Println("error:", err)
 	}
 
 }

@@ -47,7 +47,7 @@ func Handle(res http.ResponseWriter, req *http.Request) {
 
 	result, err := daprClient.GetState(req.Context(), STATE_STORE_NAME, "values", nil)
 	if err != nil {
-		log.Println("error: %s", err)
+		log.Println("error: s", err)
 	}
 
 	myValues := MyValues{}
