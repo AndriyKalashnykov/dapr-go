@@ -33,8 +33,8 @@ fi
 if [[ $SCRIPT_ACTION == "deploy" ]]; then
   helm repo add dapr https://dapr.github.io/helm-charts/ && \
   helm repo update && \
-  helm upgrade --install dapr dapr/dapr --set version=1.13.4 --namespace dapr-system --create-namespace --wait && \
-  helm upgrade --install dapr-dashboard dapr/dapr-dashboard --set version=1.13.4 --namespace dapr-system --set serviceType=LoadBalancer --wait && \
+  helm upgrade --install dapr dapr/dapr --set version=1.14.4 --namespace dapr-system --create-namespace --wait && \
+  helm upgrade --install dapr-dashboard dapr/dapr-dashboard --set version=1.14.4 --namespace dapr-system --set serviceType=LoadBalancer --wait && \
   kubectl create namespace ${DAPRGO_NS} --dry-run=client -o yaml | kubectl apply -f -  && \
   kubectl apply -f $SCRIPT_PARENT_DIR/k8s/dapr/permissions/dapr-permissions.yaml --server-side=true --force-conflicts && \
   kubectl get pods --namespace dapr-system

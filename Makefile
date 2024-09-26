@@ -139,6 +139,9 @@ deploy-dapr:
 	./scripts/dapr.sh deploy
 # kubectl port-forward svc/dapr-dashboard 8080:8080 -n dapr-system
 # xdg-open http://localhost:8080
+# or
+# xdg-open http://192.168.200.2:8080
+
 
 #undeploy-dapr: @ Undeploy DAPR
 undeploy-dapr:
