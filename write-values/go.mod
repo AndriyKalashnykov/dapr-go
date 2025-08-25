@@ -1,6 +1,6 @@
 module github.com/andriykalashnykov/dapr-go-write-values
 
-go 1.24.6
+go 1.25.0
 
 require (
 	github.com/dapr/go-sdk v1.12.0

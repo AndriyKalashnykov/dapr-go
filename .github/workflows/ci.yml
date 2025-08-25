@@ -22,6 +22,11 @@ jobs:
         with:
           go-version-file: 'read-values/go.mod'
           cache: true
+          cache-dependency-path: |
+            read-values/go.sum
+            state-frontendsvc/go.sum
+            subscriber/go.sum
+            write-values/go.sum
 
       - run: go version
 
@@ -46,6 +51,11 @@ jobs:
         with:
           go-version-file: 'read-values/go.mod'
           cache: true
+          cache-dependency-path: |
+            read-values/go.sum
+            state-frontendsvc/go.sum
+            subscriber/go.sum
+            write-values/go.sum
 
       - run: go version
 
