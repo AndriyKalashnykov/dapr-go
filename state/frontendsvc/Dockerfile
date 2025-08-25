@@ -1,4 +1,4 @@
-FROM alpine:3.20.1 AS runtime
+FROM alpine:3.22.1 AS runtime
 ARG TARGETPLATFORM
 RUN echo "Building for $TARGETPLATFORM"
 COPY main /main
