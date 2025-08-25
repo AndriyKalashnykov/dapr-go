@@ -1,0 +1,54 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+
+  builds:
+
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+        with:
+          fetch-depth: 0
+
+      - name: Install Go
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5
+        with:
+          go-version-file: 'read-values/go.mod'
+          cache: true
+
+      - run: go version
+
+      - name: Build
+        run: make build
+
+  tests:
+    strategy:
+      matrix:
+        name: [unit]
+
+    runs-on: ubuntu-latest
+    name: test
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+        with:
+          fetch-depth: 0
+
+      - name: Install Go
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5
+        with:
+          go-version-file: 'read-values/go.mod'
+          cache: true
+
+      - run: go version
+
+      - name: Run ${{ matrix.name }} tests
+        run: make test
+
