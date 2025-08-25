@@ -105,10 +105,10 @@ get:
 
 #update: @ Update dependencies to latest versions
 update:
-	@cd read-values && export GOFLAGS=$(GOFLAGS); go get -u; go mod tidy
-	@cd subscriber && export GOFLAGS=$(GOFLAGS); go get -u; go mod tidy
-	@cd write-values && export GOFLAGS=$(GOFLAGS); go get -u; go mod tidy
-	@cd state/frontendsvc && export GOFLAGS=$(GOFLAGS); go get -u; go mod tidy
+	@cd read-values && export GOFLAGS=$(GOFLAGS); go get -u ./...; go mod tidy
+	@cd subscriber && export GOFLAGS=$(GOFLAGS); go get -u ./...; go mod tidy
+	@cd write-values && export GOFLAGS=$(GOFLAGS); go get -u ./...; go mod tidy
+	@cd state/frontendsvc && export GOFLAGS=$(GOFLAGS); go get -u ./...; go mod tidy
 
 #release: @ Create and push a new tag
 release: build
