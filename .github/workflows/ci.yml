@@ -61,8 +61,11 @@ jobs:
             subscriber/go.sum
             write-values/go.sum
 
-      - run: go version
-
       - name: Run ${{ matrix.name }} tests
         run: make test
 
+      - name: Run build
+        run: make build1
+
+      - name: Run image build
+        run: make image-build
