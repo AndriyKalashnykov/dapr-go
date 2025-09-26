@@ -65,7 +65,7 @@ jobs:
         run: make test
 
       - name: Run build
-        run: make build1
+        run: make build
 
       - name: Run image build
         run: make image-build
