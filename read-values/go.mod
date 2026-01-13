@@ -1,6 +1,6 @@
 module github.com/andriykalashnykov/dapr-go-read-values
 
-go 1.25.3
+go 1.25.5
 
 require (
 	github.com/dapr/go-sdk v1.13.0
