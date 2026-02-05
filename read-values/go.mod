@@ -4,7 +4,7 @@ go 1.25.5
 
 require (
 	github.com/dapr/go-sdk v1.13.0
-	github.com/go-chi/chi/v5 v5.2.4
+	github.com/go-chi/chi/v5 v5.2.5
 )
 
 require (
