@@ -1,8 +1,12 @@
 # dapr-go
 
+[![ci](https://github.com/AndriyKalashnykov/dapr-go/actions/workflows/ci.yml/badge.svg)](https://github.com/AndriyKalashnykov/dapr-go/actions/workflows/ci.yml)
+[![Renovate](https://img.shields.io/badge/renovate-enabled-brightgreen.svg)](https://renovatebot.com)
+
 This repository aims to show how to use Dapr Ambient and Dapr building blocks (State management and Pub/Sub) with multiples services into a cluster kubernetes.
 
 ## Architecture
+
 Below, you can see a high-level and simple architecture used on this example.
 
 ![architecture](./docs/img/architecture.png)
@@ -15,7 +19,7 @@ Subscriber just listen by notifications sent from [write-values](#write-values).
 
 Write-values is responsible for save values into `redis` through `dapr-ambient`.
 
-```
+```bash
 curl -X POST http://192.168.200.5:80?value=90
 ```
 
@@ -23,7 +27,7 @@ curl -X POST http://192.168.200.5:80?value=90
 
 Read-values reads all values created by `write-values` and returns an average.
 
-```
+```bash
 curl http://192.168.200.4:80
 ```
 
@@ -32,7 +36,7 @@ curl http://192.168.200.4:80
 ### minikube
 
 ```bash
-make start-minikube
+make minikube-start
 ```
 
 ### [Dapr](https://docs.dapr.io/operations/hosting/kubernetes/kubernetes-deploy/)
@@ -41,7 +45,8 @@ make start-minikube
 make deploy-dapr
 ```
 
-Uninstall
+Uninstall:
+
 ```bash
 make undeploy-dapr
 ```
@@ -50,8 +55,10 @@ make undeploy-dapr
 
 ```bash
 make deploy-components
+```
 
-Uninstall Components
+Uninstall Components:
+
 ```bash
 make undeploy-components
 ```
@@ -60,8 +67,10 @@ make undeploy-components
 
 ```bash
 make deploy-workloads
+```
 
-Uninstall Workloads
+Uninstall Workloads:
+
 ```bash
 make undeploy-workloads
 ```

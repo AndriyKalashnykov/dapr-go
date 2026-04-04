@@ -5,10 +5,8 @@
     ":label(dependencies)",
     ":semanticCommitType(chore)",
     ":automergeAll",
-    ":automergePr",
     ":automergeRequireAllStatusChecks",
-    ":prConcurrentLimitNone",
-    ":separatePatchReleases"
+    ":prConcurrentLimitNone"
   ],
   "postUpdateOptions": [
     "gomodTidy"
@@ -40,14 +38,7 @@
         "patch",
         "digest",
         "pin",
-        "pinDigest",
-        "internal",
-        "devDependencies",
-        "ref",
-        "none",
-        "security",
-        "grop",
-        "unpin"
+        "pinDigest"
       ],
       "automerge": true,
       "automergeType": "pr",

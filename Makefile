@@ -52,7 +52,6 @@ endif
 
 #help: @ List available tasks
 help:
-	@clear
 	@echo "Usage: make COMMAND"
 	@echo "Commands :"
 	@grep -E '[a-zA-Z\.\-]+:.*?@ .*$$' $(MAKEFILE_LIST)| tr -d '#' | awk 'BEGIN {FS = ":.*?@ "}; {printf "\033[32m%-15s\033[0m - %s\n", $$1, $$2}'
@@ -162,3 +161,8 @@ deploy-workloads: image-build
 #undeploy-workloads: @ undeploy workloads
 undeploy-workloads:
 	./scripts/workloads.sh undeploy
+
+.PHONY: help minikube-start minikube-stop minikube-delete minikube-list \
+	clean test build run get update release version image-build \
+	deploy-dapr undeploy-dapr deploy-components undeploy-components \
+	deploy-workloads undeploy-workloads
