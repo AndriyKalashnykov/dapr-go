@@ -13,5 +13,10 @@ spec:
       secretKeyRef:
         name: redis-password-secret
         key: redis-password
+    # Disable the default `appid` key prefix so write-values (app-id
+    # write-values) and read-values (app-id read-values) share the same
+    # `values` key — the project's data model is a single shared list.
+    - name: keyPrefix
+      value: none
 auth:
   secretStore: kubernetes

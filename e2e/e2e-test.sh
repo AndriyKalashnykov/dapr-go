@@ -36,16 +36,20 @@ pick_port() {
   python3 -c 'import socket; s=socket.socket(); s.bind(("",0)); print(s.getsockname()[1]); s.close()'
 }
 
-# Poll an HTTP endpoint until it returns 2xx or the deadline expires.
-# Used as the K1.5 "LB IP assigned ≠ LB IP routable" race-safety check —
-# `kubectl wait` returns when the LoadBalancer status field is set, but
-# cloud-provider-kind's per-Service Envoy sidecar may take 5–60s to wire
-# up the data path. This poll smooths over that window.
+# Poll an HTTP endpoint until any HTTP response comes back (any status
+# code), or the deadline expires. K1.5 "LB IP assigned ≠ LB IP routable"
+# race-safety check — `kubectl wait` returns when the LoadBalancer status
+# field is set, but cloud-provider-kind's per-Service Envoy sidecar may
+# take 5–60s to wire up the data path. This poll asserts the data plane,
+# not the application — POST-only endpoints (write-values) and
+# missing-key endpoints (frontend probe) routinely return 405/404, both
+# of which are valid routability signals.
 wait_for_url() {
   local label="$1"; local url="$2"; local attempts="${3:-60}"
   for i in $(seq 1 "$attempts"); do
-    if curl -sf -o /dev/null --max-time 2 "$url"; then
-      echo "  ${label}: reachable after ${i}s"
+    code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 "$url" || echo 000)
+    if [ "$code" != "000" ] && [ "$code" != "" ]; then
+      echo "  ${label}: reachable after ${i}s (HTTP ${code})"
       return 0
     fi
     sleep 1

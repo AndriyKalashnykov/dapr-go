@@ -56,6 +56,11 @@ spec:
     metadata:
       labels:
         app: subscriber
+      annotations:
+        dapr.io/enabled: "true"
+        dapr.io/app-id: "subscriber"
+        dapr.io/app-port: "8080"
+        dapr.io/log-level: "debug"
     spec:
       containers:
         - name: subscriber
