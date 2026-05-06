@@ -76,17 +76,20 @@ help:
 # Dependencies
 # ---------------------------------------------------------------------------
 
-#deps: @ Install all build/lint/test/cluster dependencies via mise + go install
-deps:
+#deps: @ Full dev environment (toolchain via mise + Go tools + cloud-provider-kind)
+deps: deps-tools
+	@command -v cloud-provider-kind >/dev/null 2>&1 || { \
+		echo "Installing cloud-provider-kind@$(CLOUD_PROVIDER_KIND_VERSION) via go install..."; \
+		go install sigs.k8s.io/cloud-provider-kind@$(CLOUD_PROVIDER_KIND_VERSION); \
+	}
+
+#deps-tools: @ Install Go tools needed for static-check (mise toolchain + golangci-lint + govulncheck)
+deps-tools:
 	@command -v mise >/dev/null 2>&1 || { \
 		echo "Installing mise (no root required, installs to ~/.local/bin)..."; \
 		curl -fsSL https://mise.run | sh; \
 	}
 	@mise install --yes
-	@command -v cloud-provider-kind >/dev/null 2>&1 || { \
-		echo "Installing cloud-provider-kind@$(CLOUD_PROVIDER_KIND_VERSION) via go install..."; \
-		go install sigs.k8s.io/cloud-provider-kind@$(CLOUD_PROVIDER_KIND_VERSION); \
-	}
 	@go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_VERSION)
 	@go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 
@@ -166,7 +169,7 @@ trivy-fs:
 		fs --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 .
 
 #static-check: @ Composite static gate (lint + vulncheck + diagrams-check + trivy-fs)
-static-check: lint vulncheck diagrams-check trivy-fs
+static-check: deps-tools lint vulncheck diagrams-check trivy-fs
 
 # ---------------------------------------------------------------------------
 # Dependency hygiene
@@ -357,7 +360,7 @@ release:
 	@git push
 
 .PHONY: help \
-	deps deps-act \
+	deps deps-tools deps-act \
 	build build-linux-amd64 clean test integration-test lint vulncheck trivy-fs static-check \
 	get update \
 	image-build image-push \
