@@ -23,7 +23,12 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      code: ${{ steps.filter.outputs.code }}
+      # On tag pushes (`refs/tags/v*`) we ALWAYS run the full pipeline —
+      # otherwise dorny/paths-filter compares tag commit vs main HEAD and
+      # returns code=false when they're the same SHA, skipping the whole
+      # chain including `docker`. The `||` short-circuits to the filter
+      # result for non-tag events.
+      code: ${{ startsWith(github.ref, 'refs/tags/') && 'true' || steps.filter.outputs.code }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - id: filter
