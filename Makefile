@@ -49,8 +49,15 @@ KUBECTL           := kubectl --context $(KUBECTL_CTX)
 CURRENTTAG := $(shell git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0)
 NEWTAG    ?=
 
-IMAGE_REPO_PREFIX ?= andriykalashnykov/dapr-go
-IMAGE_TAG         ?= v0.0.1
+# Match what `docker/metadata-action` publishes to GHCR — same path so the
+# manifest in k8s/apps/*.yaml resolves the same image whether it's loaded
+# into KinD locally (`make deploy-workloads` → `kind load docker-image`)
+# or pulled from the registry by a non-KinD deploy.
+IMAGE_REPO_PREFIX ?= ghcr.io/andriykalashnykov/dapr-go
+# Strip the `v` prefix from the latest git tag (metadata-action's
+# semver pattern emits 0.1.0 for tag v0.1.0). Falls back to 0.0.0 on a
+# fresh checkout with no tags.
+IMAGE_TAG         ?= $(shell git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo 0.0.0)
 
 SERVICES := read-values subscriber write-values frontendsvc
 
@@ -200,7 +207,7 @@ image-build:
 		echo ">> image-build $$dir"; \
 		(cd "$$dir" && DOCKER_BUILDKIT=1 docker buildx build --load \
 			--platform linux/amd64 \
-			-t $(IMAGE_REPO_PREFIX)-$$svc:$(IMAGE_TAG) .); \
+			-t $(IMAGE_REPO_PREFIX)/$$svc:$(IMAGE_TAG) .); \
 	done
 
 #image-push: @ Build and push multi-arch images (linux/amd64,linux/arm64) to the registry
@@ -211,7 +218,7 @@ image-push:
 		(cd "$$dir" && DOCKER_BUILDKIT=1 docker buildx build --push \
 			--platform linux/amd64,linux/arm64 \
 			--provenance=false --sbom=false \
-			-t $(IMAGE_REPO_PREFIX)-$$svc:$(IMAGE_TAG) .); \
+			-t $(IMAGE_REPO_PREFIX)/$$svc:$(IMAGE_TAG) .); \
 	done
 
 # ---------------------------------------------------------------------------
