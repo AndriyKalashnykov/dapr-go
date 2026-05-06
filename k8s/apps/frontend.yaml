@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
         - name: frontendsvc
-          image: andriykalashnykov/dapr-go-frontendsvc:v0.0.1
+          image: ghcr.io/andriykalashnykov/dapr-go/frontendsvc:0.1.0
           ports:
             - containerPort: 8080
           env:

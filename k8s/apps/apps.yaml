@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
         - name: read-values
-          image: andriykalashnykov/dapr-go-read-values:v0.0.1
+          image: ghcr.io/andriykalashnykov/dapr-go/read-values:0.1.0
           env:
             - name: DAPR_PORT
               value: "50001"
@@ -64,7 +64,7 @@ spec:
     spec:
       containers:
         - name: subscriber
-          image: andriykalashnykov/dapr-go-subscriber:v0.0.1
+          image: ghcr.io/andriykalashnykov/dapr-go/subscriber:0.1.0
           resources:
             limits:
               memory: "128Mi"
@@ -106,7 +106,7 @@ spec:
     spec:
       containers:
         - name: write-values
-          image: andriykalashnykov/dapr-go-write-values:v0.0.1
+          image: ghcr.io/andriykalashnykov/dapr-go/write-values:0.1.0
           env:
             - name: DAPR_PORT
               value: "50001"
