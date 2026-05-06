@@ -2,8 +2,7 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"net/http/httputil"
@@ -17,69 +16,55 @@ type Result struct {
 }
 
 func notifications(w http.ResponseWriter, r *http.Request) {
-
-	requestDump, err := httputil.DumpRequest(r, true)
-	if err != nil {
-		fmt.Println(err)
+	if dump, err := httputil.DumpRequest(r, true); err == nil {
+		log.Println(string(dump))
 	}
-	log.Println(string(requestDump))
 
-	data, err := ioutil.ReadAll(r.Body)
+	data, err := io.ReadAll(r.Body)
 	if err != nil {
-		log.Fatal(err)
+		log.Printf("notifications: read body: %s", err)
+		http.Error(w, "unable to read request body", http.StatusBadRequest)
+		return
 	}
+
 	var result Result
-	err = json.Unmarshal(data, &result)
-	if err != nil {
-		log.Fatal(err.Error())
+	if err := json.Unmarshal(data, &result); err != nil {
+		log.Printf("notifications: unmarshal: %s", err)
+		http.Error(w, "invalid JSON payload", http.StatusBadRequest)
+		return
 	}
-	fmt.Println("Subscriber received on /notifications:", string(result.Data))
+	log.Printf("Subscriber received on /notifications: %s", result.Data)
 
-	obj, err := json.Marshal(data)
-	if err != nil {
-		log.Fatal(err.Error())
-	}
-	_, err = w.Write(obj)
-	if err != nil {
-		log.Fatal(err.Error())
+	w.Header().Set("Content-Type", "application/json")
+	if _, err := w.Write(data); err != nil {
+		log.Printf("notifications: write response: %s", err)
 	}
 }
 
-func printRoot(w http.ResponseWriter, r *http.Request) {
-	requestDump, err := httputil.DumpRequest(r, true)
-	if err != nil {
-		fmt.Println(err)
+func printRoot(_ http.ResponseWriter, r *http.Request) {
+	if dump, err := httputil.DumpRequest(r, true); err == nil {
+		log.Println(string(dump))
 	}
-	log.Println(string(requestDump))
 }
 
 func main() {
 	port := GetenvOrDefault("APP_PORT", "8080")
 
 	r := chi.NewRouter()
-
-	// Dapr subscription routes orders topic to this route
 	r.Post("/", printRoot)
-
-	// Dapr subscription routes orders topic to this route
 	r.Post("/notifications", notifications)
-
-	// Add handlers for readiness and liveness endpoints
-	r.Get("/health/{endpoint:readiness|liveness}", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+	r.Get("/health/{endpoint:readiness|liveness}", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
 	})
 
 	log.Printf("Starting Subscriber in Port: %s", port)
-	// Start the server; this is a blocking call
-	err := http.ListenAndServe(":"+port, r)
-	if err != nil {
-		log.Println("error:", err)
+	if err := http.ListenAndServe(":"+port, r); err != nil {
+		log.Fatalf("subscriber: ListenAndServe: %s", err)
 	}
 }
 
 func GetenvOrDefault(envName, defaultValue string) string {
-	v := os.Getenv(envName)
-	if v != "" {
+	if v := os.Getenv(envName); v != "" {
 		return v
 	}
 	return defaultValue

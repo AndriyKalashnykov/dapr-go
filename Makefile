@@ -1,168 +1,370 @@
 .DEFAULT_GOAL := help
-CURRENTTAG:=$(shell git describe --tags --abbrev=0)
-NEWTAG ?= $(shell bash -c 'read -p "Please provide a new tag (currnet tag - ${CURRENTTAG}): " newtag; echo $$newtag')
-GOFLAGS=-mod=mod
 
-IS_DARWIN := 0
-IS_LINUX := 0
-IS_FREEBSD := 0
-IS_WINDOWS := 0
-IS_AMD64 := 0
-IS_AARCH64 := 0
-IS_RISCV64 := 0
+SHELL := bash
+.SHELLFLAGS := -eu -o pipefail -c
 
-# Test Windows apart because it doesn't support `uname -s`.
-ifeq ($(OS), Windows_NT)
-	# We can assume it will likely be in amd64.
-	IS_AMD64 := 1
-	IS_WINDOWS := 1
-else
-	# Platform
-	uname := $(shell uname -s)
+# Make sure mise-managed shims and ~/.local/bin are visible to recipes —
+# Make spawns a non-interactive shell that does not source ~/.zshrc/~/.bashrc.
+export PATH := $(HOME)/.local/share/mise/shims:$(HOME)/.local/bin:$(PATH)
 
-	ifeq ($(uname), Darwin)
-		IS_DARWIN := 1
-	else ifeq ($(uname), Linux)
-		IS_LINUX := 1
-	else ifeq ($(uname), FreeBSD)
-		IS_FREEBSD := 1
-	else
-		# We use spaces instead of tabs to indent `$(error)`
-		# otherwise it's considered as a command outside a
-		# target and it will fail.
-                $(error Unrecognized platform, expect `Darwin`, `Linux` or `Windows_NT`)
-	endif
+# ---------------------------------------------------------------------------
+# Pinned tool versions — Renovate-tracked via inline comments
+# ---------------------------------------------------------------------------
 
-	# Architecture
-	uname := $(shell uname -m)
+# renovate: datasource=github-releases depName=jdx/mise
+MISE_VERSION := 2025.10.0
 
-	ifneq (, $(filter $(uname), x86_64 amd64))
-		IS_AMD64 := 1
-	else ifneq (, $(filter $(uname), aarch64 arm64))
-		IS_AARCH64 := 1
-	else ifneq (, $(filter $(uname), riscv64))
-		IS_RISCV64 := 1
-	else
-		# We use spaces instead of tabs to indent `$(error)`
-		# otherwise it's considered as a command outside a
-		# target and it will fail.
-                $(error Unrecognized architecture, expect `x86_64`, `aarch64`, `arm64`, 'riscv64')
-	endif
-endif
+# renovate: datasource=github-releases depName=kubernetes-sigs/kind
+KIND_VERSION := 0.27.0
+# Bumped together with KIND_VERSION per kind release notes.
+KIND_NODE_IMAGE := kindest/node:v1.34.0
+
+# renovate: datasource=go depName=sigs.k8s.io/cloud-provider-kind
+CLOUD_PROVIDER_KIND_VERSION := v0.7.0
+
+# renovate: datasource=github-releases depName=golangci/golangci-lint
+GOLANGCI_VERSION := v2.5.0
+
+# renovate: datasource=go depName=golang.org/x/vuln/cmd/govulncheck
+GOVULNCHECK_VERSION := v1.1.4
+
+# renovate: datasource=docker depName=plantuml/plantuml
+PLANTUML_VERSION := 1.2025.7
+
+# renovate: datasource=docker depName=aquasec/trivy
+TRIVY_VERSION := 0.69.1
+
+# renovate: datasource=github-releases depName=nektos/act
+ACT_VERSION := 0.2.87
+
+# ---------------------------------------------------------------------------
+# Project metadata
+# ---------------------------------------------------------------------------
+
+KIND_CLUSTER_NAME ?= dapr-go
+KUBECTL_CTX       := kind-$(KIND_CLUSTER_NAME)
+DAPRGO_NS         ?= dapr-go
+KUBECTL           := kubectl --context $(KUBECTL_CTX)
+
+CURRENTTAG := $(shell git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0)
+NEWTAG    ?=
+
+IMAGE_REPO_PREFIX ?= andriykalashnykov/dapr-go
+IMAGE_TAG         ?= v0.0.1
+
+SERVICES := read-values subscriber write-values frontendsvc
+
+# Resolve a service name to its source directory. The frontendsvc service
+# lives at state/frontendsvc; the others are named after their directory.
+define service_dir
+$(if $(filter frontendsvc,$(1)),state/frontendsvc,$(1))
+endef
+
+GOFLAGS := -mod=mod
+
+# ---------------------------------------------------------------------------
+# Help (canonical portfolio pattern)
+# ---------------------------------------------------------------------------
 
 #help: @ List available tasks
 help:
 	@echo "Usage: make COMMAND"
 	@echo "Commands :"
-	@grep -E '[a-zA-Z\.\-]+:.*?@ .*$$' $(MAKEFILE_LIST)| tr -d '#' | awk 'BEGIN {FS = ":.*?@ "}; {printf "\033[32m%-15s\033[0m - %s\n", $$1, $$2}'
+	@grep -E '[a-zA-Z\.\-]+:.*?@ .*$$' $(MAKEFILE_LIST)| tr -d '#' | awk 'BEGIN {FS = ":.*?@ "}; {printf "\033[32m%-22s\033[0m - %s\n", $$1, $$2}'
 
-#minikube-start: @ Start Minikube, parametrized example: ./scripts/minikube.sh start dapr-go 1 8000mb 2 40g docker 192.168.200.200
-minikube-start:
-	./scripts/minikube.sh start
+# ---------------------------------------------------------------------------
+# Dependencies
+# ---------------------------------------------------------------------------
 
-#minikube-stop: @ Stop Minikube
-minikube-stop:
-	./scripts/minikube.sh stop
+#deps: @ Install all build/lint/test/cluster dependencies via mise + go install
+deps:
+	@command -v mise >/dev/null 2>&1 || { \
+		echo "Installing mise (no root required, installs to ~/.local/bin)..."; \
+		curl -fsSL https://mise.run | sh; \
+	}
+	@mise install --yes
+	@command -v cloud-provider-kind >/dev/null 2>&1 || { \
+		echo "Installing cloud-provider-kind@$(CLOUD_PROVIDER_KIND_VERSION) via go install..."; \
+		go install sigs.k8s.io/cloud-provider-kind@$(CLOUD_PROVIDER_KIND_VERSION); \
+	}
+	@go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_VERSION)
+	@go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 
-#minikube-delete: @ Delete Minikube
-minikube-delete:
-	./scripts/minikube.sh delete
+#deps-act: @ Install act (local GitHub Actions runner)
+deps-act:
+	@command -v act >/dev/null 2>&1 || \
+		go install github.com/nektos/act@$(ACT_VERSION)
 
-#minikube-list: @ List Minikube profiles
-minikube-list:
-	minikube profile list
+# ---------------------------------------------------------------------------
+# Build / test / lint
+# ---------------------------------------------------------------------------
 
-#clean: @ Cleanup
-clean:
-	@rm ./read-values/main
-	@rm ./subscriber/main
-	@rm ./write-values/main
-
-#test: @ Run tests
-test:
-	@cd read-values && export GOFLAGS=$(GOFLAGS); go test $(go list ./...)
-	@cd subscriber && export GOFLAGS=$(GOFLAGS); go test $(go list ./...)
-	@cd write-values && export GOFLAGS=$(GOFLAGS); go test $(go list ./...)
-
-#build: @ Build binary
+#build: @ Build all service binaries for the current platform
 build:
-	@export GOFLAGS=$(GOFLAGS); export CGO_ENABLED=0; GOOS=linux GOARCH=amd64 go build -o ./read-values/main ./read-values/main.go
-	@export GOFLAGS=$(GOFLAGS); export CGO_ENABLED=0; GOOS=linux GOARCH=amd64 go build -o ./subscriber/main ./subscriber/main.go
-	@export GOFLAGS=$(GOFLAGS); export CGO_ENABLED=0; GOOS=linux GOARCH=amd64 go build -o ./write-values/main ./write-values/main.go
-	@cd ./state/frontendsvc && export GOFLAGS=$(GOFLAGS); export CGO_ENABLED=0; GOOS=linux GOARCH=amd64 go build -o ./main ./main.go
+	@for svc in $(SERVICES); do \
+		case "$$svc" in frontendsvc) dir=state/frontendsvc ;; *) dir=$$svc ;; esac; \
+		echo ">> build $$dir"; \
+		(cd "$$dir" && GOFLAGS=$(GOFLAGS) CGO_ENABLED=0 go build -o main .); \
+	done
 
-#run: @ Run binary
-run:
-	@export GOFLAGS=$(GOFLAGS); go run ./read-values/main.go
+#build-linux-amd64: @ Cross-compile all services for linux/amd64 (used by image-build)
+build-linux-amd64:
+	@for svc in $(SERVICES); do \
+		case "$$svc" in frontendsvc) dir=state/frontendsvc ;; *) dir=$$svc ;; esac; \
+		echo ">> build (linux/amd64) $$dir"; \
+		(cd "$$dir" && GOFLAGS=$(GOFLAGS) CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o main .); \
+	done
 
-#get: @ Download and install dependency packages
+#clean: @ Remove compiled binaries
+clean:
+	@for svc in $(SERVICES); do \
+		case "$$svc" in frontendsvc) dir=state/frontendsvc ;; *) dir=$$svc ;; esac; \
+		rm -f "$$dir/main"; \
+	done
+
+#test: @ Run unit tests (-race -cover) for every service module
+test:
+	@for svc in $(SERVICES); do \
+		case "$$svc" in frontendsvc) dir=state/frontendsvc ;; *) dir=$$svc ;; esac; \
+		echo ">> test $$dir"; \
+		(cd "$$dir" && GOFLAGS=$(GOFLAGS) go test -race -cover $$(go list ./...)); \
+	done
+
+#integration-test: @ Run integration tests against real Redis via Testcontainers (requires Docker)
+integration-test:
+	@for svc in $(SERVICES); do \
+		case "$$svc" in \
+			subscriber) echo ">> integration-test $$svc (skipped — no Dapr/Redis interaction)" ;; \
+			frontendsvc) dir=state/frontendsvc ;; \
+			*) dir=$$svc ;; \
+		esac; \
+		if [ "$$svc" = "subscriber" ]; then continue; fi; \
+		echo ">> integration-test $$dir"; \
+		(cd "$$dir" && GOFLAGS=$(GOFLAGS) go test -tags=integration -race -count=1 -timeout 300s ./...); \
+	done
+
+#lint: @ Run golangci-lint across every service module
+lint:
+	@for svc in $(SERVICES); do \
+		case "$$svc" in frontendsvc) dir=state/frontendsvc ;; *) dir=$$svc ;; esac; \
+		echo ">> lint $$dir"; \
+		(cd "$$dir" && golangci-lint run ./...); \
+	done
+
+#vulncheck: @ Run govulncheck across every service module
+vulncheck:
+	@for svc in $(SERVICES); do \
+		case "$$svc" in frontendsvc) dir=state/frontendsvc ;; *) dir=$$svc ;; esac; \
+		echo ">> vulncheck $$dir"; \
+		(cd "$$dir" && govulncheck ./...); \
+	done
+
+#trivy-fs: @ Trivy filesystem scan (HIGH+CRITICAL, fixed-only)
+trivy-fs:
+	@docker run --rm -v "$$PWD:/src:ro" -w /src \
+		aquasec/trivy:$(TRIVY_VERSION) \
+		fs --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 .
+
+#static-check: @ Composite static gate (lint + vulncheck + diagrams-check + trivy-fs)
+static-check: lint vulncheck diagrams-check trivy-fs
+
+# ---------------------------------------------------------------------------
+# Dependency hygiene
+# ---------------------------------------------------------------------------
+
+#get: @ Download dependencies + go mod tidy in every service module
 get:
-	@cd read-values && export GOFLAGS=$(GOFLAGS); go get . ; go mod tidy
-	@cd subscriber && export GOFLAGS=$(GOFLAGS); go get . ; go mod tidy
-	@cd write-values && export GOFLAGS=$(GOFLAGS); go get . ; go mod tidy
-	@cd state/frontendsvc && export GOFLAGS=$(GOFLAGS); go get . ; go mod tidy
+	@for svc in $(SERVICES); do \
+		case "$$svc" in frontendsvc) dir=state/frontendsvc ;; *) dir=$$svc ;; esac; \
+		(cd "$$dir" && GOFLAGS=$(GOFLAGS) go get . && go mod tidy); \
+	done
 
-#update: @ Update dependencies to latest versions
+#update: @ Update dependencies to latest versions in every service module
 update:
-	@cd read-values && export GOFLAGS=$(GOFLAGS); go get -u ./...; go mod tidy
-	@cd subscriber && export GOFLAGS=$(GOFLAGS); go get -u ./...; go mod tidy
-	@cd write-values && export GOFLAGS=$(GOFLAGS); go get -u ./...; go mod tidy
-	@cd state/frontendsvc && export GOFLAGS=$(GOFLAGS); go get -u ./...; go mod tidy
+	@for svc in $(SERVICES); do \
+		case "$$svc" in frontendsvc) dir=state/frontendsvc ;; *) dir=$$svc ;; esac; \
+		(cd "$$dir" && GOFLAGS=$(GOFLAGS) go get -u ./... && go mod tidy); \
+	done
 
-#release: @ Create and push a new tag
-release: build
-	$(eval NT=$(NEWTAG))
-	@echo -n "Are you sure to create and push ${NT} tag? [y/N] " && read ans && [ $${ans:-N} = y ]
-	@echo ${NT} > ./version.txt
-	@git add -A
-	@git commit -a -s -m "Cut ${NT} release"
-	@git tag -a -m "Cut ${NT} release" ${NT}
-	@git push origin ${NT}
-	@git push
-	@echo "Done."
+# ---------------------------------------------------------------------------
+# Container images
+# ---------------------------------------------------------------------------
 
-#version: @ Print current version(tag)
-version:
-	@echo $(shell git describe --tags --abbrev=0)
+#image-build: @ Build local Docker images for all services (linux/amd64, --load) — Dockerfile does its own Go build
+image-build:
+	@for svc in $(SERVICES); do \
+		case "$$svc" in frontendsvc) dir=state/frontendsvc ;; *) dir=$$svc ;; esac; \
+		echo ">> image-build $$dir"; \
+		(cd "$$dir" && DOCKER_BUILDKIT=1 docker buildx build --load \
+			--platform linux/amd64 \
+			-t $(IMAGE_REPO_PREFIX)-$$svc:$(IMAGE_TAG) .); \
+	done
 
-#image-build: @ Build a Docker image
-image-build: build
-	@cd read-values && DOCKER_BUILDKIT=1 docker buildx build --load -t andriykalashnykov/dapr-go-read-values:v0.0.1 --build-arg TARGETPLATFORM=linux/amd64 .
-	@cd subscriber && DOCKER_BUILDKIT=1 docker buildx build --load  -t andriykalashnykov/dapr-go-subscriber:v0.0.1 --build-arg TARGETPLATFORM=linux/amd64 .
-	@cd write-values && DOCKER_BUILDKIT=1 docker buildx build --load  -t andriykalashnykov/dapr-go-write-values:v0.0.1 --build-arg TARGETPLATFORM=linux/amd64 .
-	@cd state/frontendsvc && DOCKER_BUILDKIT=1 docker buildx build --load  -t andriykalashnykov/dapr-go-frontendsvc:v0.0.1 --build-arg TARGETPLATFORM=linux/amd64 .
-#	@cd state/frontendsvc && ko build --local -B --platform=linux/amd64,linux/arm64 .
+#image-push: @ Build and push multi-arch images (linux/amd64,linux/arm64) to the registry
+image-push:
+	@for svc in $(SERVICES); do \
+		case "$$svc" in frontendsvc) dir=state/frontendsvc ;; *) dir=$$svc ;; esac; \
+		echo ">> image-push $$dir"; \
+		(cd "$$dir" && DOCKER_BUILDKIT=1 docker buildx build --push \
+			--platform linux/amd64,linux/arm64 \
+			--provenance=false --sbom=false \
+			-t $(IMAGE_REPO_PREFIX)-$$svc:$(IMAGE_TAG) .); \
+	done
 
-#deploy-dapr: @ Deploy DAPR
+# ---------------------------------------------------------------------------
+# KinD cluster + Dapr deploy lifecycle
+# ---------------------------------------------------------------------------
+
+#kind-up: @ Create the KinD cluster + start cloud-provider-kind
+kind-up:
+	@KIND_CLUSTER_NAME=$(KIND_CLUSTER_NAME) KIND_NODE_IMAGE=$(KIND_NODE_IMAGE) \
+		./scripts/kind-up.sh
+
+#kind-down: @ Delete the KinD cluster + prune kindccm-* orphan sidecars
+kind-down:
+	@KIND_CLUSTER_NAME=$(KIND_CLUSTER_NAME) ./scripts/kind-down.sh
+
+#kind-deploy: @ Full bring-up — kind-up → deploy-dapr → deploy-components → deploy-workloads
+kind-deploy: kind-up deploy-dapr deploy-components deploy-workloads
+
+#kind-destroy: @ Tear everything down (alias for kind-down)
+kind-destroy: kind-down
+
+#deploy-dapr: @ Install the Dapr control plane on the KinD cluster
 deploy-dapr:
-	./scripts/dapr.sh deploy
-# kubectl port-forward svc/dapr-dashboard 8080:8080 -n dapr-system
-# xdg-open http://localhost:8080
-# or
-# xdg-open http://192.168.200.2:8080
+	@KIND_CLUSTER_NAME=$(KIND_CLUSTER_NAME) DAPRGO_NS=$(DAPRGO_NS) \
+		./scripts/dapr.sh deploy
 
-
-#undeploy-dapr: @ Undeploy DAPR
+#undeploy-dapr: @ Remove the Dapr control plane
 undeploy-dapr:
-	./scripts/dapr.sh undeploy
+	@KIND_CLUSTER_NAME=$(KIND_CLUSTER_NAME) DAPRGO_NS=$(DAPRGO_NS) \
+		./scripts/dapr.sh undeploy
 
-#deploy-components: @ Deploy Redis, Kafka, etc.
+#deploy-components: @ Deploy Redis (state store + pub/sub broker) + redis-password-secret
 deploy-components:
-	./scripts/components.sh deploy
+	@KIND_CLUSTER_NAME=$(KIND_CLUSTER_NAME) DAPRGO_NS=$(DAPRGO_NS) \
+		./scripts/components.sh deploy
 
-#undeploy-components: @ Undeploy Redis, Kafka, etc.
+#undeploy-components: @ Remove Redis + the secret
 undeploy-components:
-	./scripts/components.sh undeploy
+	@KIND_CLUSTER_NAME=$(KIND_CLUSTER_NAME) DAPRGO_NS=$(DAPRGO_NS) \
+		./scripts/components.sh undeploy
 
-#deploy-workloads: @ deploy workloads
+#deploy-workloads: @ Build images, load into KinD, apply k8s manifests
 deploy-workloads: image-build
-	./scripts/workloads.sh deploy
+	@KIND_CLUSTER_NAME=$(KIND_CLUSTER_NAME) DAPRGO_NS=$(DAPRGO_NS) \
+		IMAGE_REPO_PREFIX=$(IMAGE_REPO_PREFIX) IMAGE_TAG=$(IMAGE_TAG) \
+		./scripts/workloads.sh deploy
 
-#undeploy-workloads: @ undeploy workloads
+#undeploy-workloads: @ Remove the application workloads
 undeploy-workloads:
-	./scripts/workloads.sh undeploy
+	@KIND_CLUSTER_NAME=$(KIND_CLUSTER_NAME) DAPRGO_NS=$(DAPRGO_NS) \
+		./scripts/workloads.sh undeploy
 
-.PHONY: help minikube-start minikube-stop minikube-delete minikube-list \
-	clean test build run get update release version image-build \
+# ---------------------------------------------------------------------------
+# E2E
+# ---------------------------------------------------------------------------
+
+#e2e: @ End-to-end smoke test on a running KinD cluster (state + pubsub roundtrip + frontendsvc CRUD)
+e2e:
+	@if [ ! -x e2e/e2e-test.sh ]; then \
+		echo "e2e/e2e-test.sh not found or not executable." >&2; \
+		exit 1; \
+	fi
+	@KIND_CLUSTER_NAME=$(KIND_CLUSTER_NAME) DAPRGO_NS=$(DAPRGO_NS) ./e2e/e2e-test.sh
+
+#e2e-full: @ Convenience: kind-up → deploy-dapr → deploy-components → deploy-workloads → e2e (fresh-checkout flow)
+e2e-full: kind-deploy e2e
+
+# ---------------------------------------------------------------------------
+# Diagrams
+# ---------------------------------------------------------------------------
+
+DIAGRAM_SOURCES := $(wildcard docs/diagrams/*.puml)
+DIAGRAM_OUTPUTS := $(patsubst docs/diagrams/%.puml,docs/diagrams/out/%.png,$(DIAGRAM_SOURCES))
+
+#diagrams: @ Render all PlantUML sources to docs/diagrams/out/*.png
+diagrams: $(DIAGRAM_OUTPUTS)
+
+docs/diagrams/out/%.png: docs/diagrams/%.puml
+	@mkdir -p docs/diagrams/out
+	@docker run --rm \
+		--user $$(id -u):$$(id -g) \
+		-e _JAVA_OPTIONS=-Duser.home=/tmp \
+		-v "$$PWD:/work" -w /work \
+		plantuml/plantuml:$(PLANTUML_VERSION) \
+		-tpng -o "/work/docs/diagrams/out" "/work/$<"
+
+#diagrams-clean: @ Remove rendered diagram PNGs
+diagrams-clean:
+	@rm -rf docs/diagrams/out
+
+#diagrams-check: @ Verify committed PNGs are in sync with .puml sources
+diagrams-check:
+	@if [ -z "$(DIAGRAM_SOURCES)" ]; then \
+		echo "No PlantUML sources under docs/diagrams/; skipping"; \
+	else \
+		$(MAKE) diagrams; \
+		git diff --exit-code docs/diagrams/out || { \
+			echo "diagrams-check: rendered PNGs differ from committed copies — run 'make diagrams' and commit." >&2; \
+			exit 1; \
+		}; \
+	fi
+
+# ---------------------------------------------------------------------------
+# CI composites
+# ---------------------------------------------------------------------------
+
+#ci: @ Full local CI pipeline (deps → static-check → test → integration-test → build → image-build)
+ci: deps static-check test integration-test build image-build
+
+#ci-run: @ Run the GitHub Actions workflow locally via act
+ci-run: deps-act
+	@act push --container-architecture linux/amd64
+
+# ---------------------------------------------------------------------------
+# Renovate
+# ---------------------------------------------------------------------------
+
+#renovate-validate: @ Validate Renovate configuration
+renovate-validate:
+	@if [ -n "$$GH_ACCESS_TOKEN" ]; then \
+		GITHUB_COM_TOKEN=$$GH_ACCESS_TOKEN npx --yes renovate --platform=local; \
+	else \
+		echo "Warning: GH_ACCESS_TOKEN not set, some lookups may fail"; \
+		npx --yes renovate --platform=local; \
+	fi
+
+# ---------------------------------------------------------------------------
+# Release
+# ---------------------------------------------------------------------------
+
+#version: @ Print current version (git tag)
+version:
+	@echo $(CURRENTTAG)
+
+#release: @ Tag a new release (NEWTAG=vX.Y.Z make release)
+release:
+	@if [ -z "$(NEWTAG)" ]; then \
+		echo "Provide NEWTAG (current: $(CURRENTTAG))" >&2; exit 1; \
+	fi
+	@echo -n "Are you sure to create and push $(NEWTAG)? [y/N] " && read ans && [ $${ans:-N} = y ]
+	@echo $(NEWTAG) > version.txt
+	@git add version.txt
+	@git commit -s -m "Cut $(NEWTAG) release"
+	@git tag -a -m "Cut $(NEWTAG) release" $(NEWTAG)
+	@git push origin $(NEWTAG)
+	@git push
+
+.PHONY: help \
+	deps deps-act \
+	build build-linux-amd64 clean test integration-test lint vulncheck trivy-fs static-check \
+	get update \
+	image-build image-push \
+	kind-up kind-down kind-deploy kind-destroy \
 	deploy-dapr undeploy-dapr deploy-components undeploy-components \
-	deploy-workloads undeploy-workloads
+	deploy-workloads undeploy-workloads e2e e2e-full \
+	diagrams diagrams-clean diagrams-check \
+	ci ci-run \
+	renovate-validate \
+	version release

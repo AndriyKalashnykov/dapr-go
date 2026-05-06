@@ -2,28 +2,26 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
-	"github.com/andriykalashnykov/dapr-go-frontendsvc/internal/types"
 	"log"
 	"math/rand"
 	"net/http"
 	"os"
 
 	dapr "github.com/dapr/go-sdk/client"
+
+	"github.com/andriykalashnykov/dapr-go-frontendsvc/internal/types"
 )
 
-var (
-	appPort    = os.Getenv("APP_PORT")
-	stateStore = "statestore"
+const stateStoreName = "statestore"
 
+var (
+	appPort    = getenvOrDefault("APP_PORT", "8080")
 	daprClient dapr.Client
 )
 
 func main() {
-	if appPort == "" {
-		appPort = "8080"
-	}
-
 	dc, err := dapr.NewClient()
 	if err != nil {
 		log.Fatalf("dapr client: NewClient: %s", err)
@@ -43,48 +41,54 @@ func main() {
 }
 
 func postOrder(w http.ResponseWriter, r *http.Request) {
-	var receivedOrder types.Order
-	if err := json.NewDecoder(r.Body).Decode(&receivedOrder); err != nil {
-		log.Printf("order decoder: %s", err)
-		http.Error(w, "unable to post order", http.StatusInternalServerError)
+	var in types.Order
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		log.Printf("postOrder: decode: %s", err)
+		http.Error(w, "unable to decode order", http.StatusBadRequest)
 		return
 	}
 
-	orderID := fmt.Sprintf("order-%x", rand.Int31())
-	receivedOrder.ID = orderID
-	receivedOrder.Received = true
-	receivedOrder.Completed = true
-	log.Printf("order received: [orderid=%s]", orderID)
-
-	// marshal order for downstream processing
-	orderData, err := json.Marshal(receivedOrder)
+	saved, err := saveOrder(r.Context(), daprClient, stateStoreName, in, randomOrderID)
 	if err != nil {
-		log.Printf("order data: %s", err)
+		log.Printf("postOrder: %s", err)
 		http.Error(w, "unable to post order", http.StatusInternalServerError)
 		return
 	}
 
-	if err := daprClient.SaveState(r.Context(), stateStore, orderID, orderData, nil); err != nil {
-		log.Printf("dapr save state: %s", err)
-		http.Error(w, "unable to post order", http.StatusInternalServerError)
-		return
-	}
-
+	log.Printf("order received: [orderid=%s]", saved.ID)
 	w.Header().Set("Content-Type", "application/json")
-	fmt.Fprintf(w, `{"order":"%s", "status":"received"}`, orderID)
+	if _, err := fmt.Fprintf(w, `{"order":"%s","status":"received"}`, saved.ID); err != nil {
+		log.Printf("postOrder: write response: %s", err)
+	}
 }
 
 func getOrder(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 
-	data, err := daprClient.GetState(r.Context(), stateStore, id, nil)
+	data, err := loadOrder(r.Context(), daprClient, stateStoreName, id)
+	if errors.Is(err, errOrderNotFound) {
+		http.Error(w, "order not found", http.StatusNotFound)
+		return
+	}
 	if err != nil {
-		log.Printf("get order data: %s", err)
+		log.Printf("getOrder: %s", err)
 		http.Error(w, "unable to get order", http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	fmt.Fprint(w, string(data.Value))
+	if _, err := w.Write(data); err != nil {
+		log.Printf("getOrder: write response: %s", err)
+	}
+}
 
+func randomOrderID() string {
+	return fmt.Sprintf("order-%x", rand.Int31())
+}
+
+func getenvOrDefault(name, def string) string {
+	if v := os.Getenv(name); v != "" {
+		return v
+	}
+	return def
 }

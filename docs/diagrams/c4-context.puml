@@ -1,0 +1,31 @@
+@startuml c4-context
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/v2.11.0/C4_Context.puml
+
+skinparam backgroundColor #FAFAFA
+skinparam shadowing false
+skinparam roundCorner 4
+skinparam defaultFontName "Inter, Helvetica, Arial, sans-serif"
+skinparam defaultFontSize 13
+skinparam ArrowColor #37474F
+skinparam ArrowThickness 1.2
+skinparam rectangleBorderThickness 1.3
+
+UpdateElementStyle("person",       $fontColor="#FFFFFF", $bgColor="#0F766E", $borderColor="#134E4A")
+UpdateElementStyle("system",       $fontColor="#FFFFFF", $bgColor="#2563EB", $borderColor="#1E3A8A")
+UpdateElementStyle("system_ext",   $fontColor="#FFFFFF", $bgColor="#64748B", $borderColor="#334155")
+
+title dapr-go — System Context
+
+Person(user, "Operator / Client", "Posts values, reads averages")
+
+System(dapr_go, "dapr-go", "Four Go services demonstrating Dapr State Management and Pub/Sub building blocks on Kubernetes")
+
+System_Ext(dapr, "Dapr", "Sidecar runtime injected per pod\n(v1.15.10)")
+System_Ext(redis, "Redis", "State store + Pub/Sub broker\n(Bitnami Helm chart)")
+
+Rel(user, dapr_go, "POST /?value=N, GET /, POST /orders/new", "HTTP")
+Rel(dapr_go, dapr, "GetState / SaveState / PublishEvent", "gRPC localhost:50001")
+Rel(dapr, redis, "Reads/writes state, publishes events", "RESP")
+
+SHOW_LEGEND()
+@enduml

@@ -2,81 +2,73 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:best-practices",
-    ":label(dependencies)",
-    ":semanticCommitType(chore)",
-    ":automergeAll",
-    ":automergeRequireAllStatusChecks",
-    ":prConcurrentLimitNone"
+    ":semanticCommitType(chore)"
   ],
-  "postUpdateOptions": [
-    "gomodTidy"
-  ],
+  "enabledManagers": ["gomod", "github-actions", "dockerfile", "kubernetes", "custom.regex"],
+  "kubernetes": {
+    "managerFilePatterns": ["/^k8s/.+\\.yaml$/"]
+  },
+  "postUpdateOptions": ["gomodTidy"],
   "commitMessagePrefix": "chore(all): ",
   "commitMessageAction": "update",
   "commitBody": "Signed-off-by: Renovate Bot <bot@renovateapp.com>",
-  "platformAutomerge": true,
+  "labels": ["dependencies"],
   "prConcurrentLimit": 50,
   "prHourlyLimit": 0,
-  "groupName": "all",
-  "labels": [
-    "dependencies"
+  "platformAutomerge": true,
+  "automerge": true,
+  "automergeType": "pr",
+  "automergeStrategy": "squash",
+  "ignoreTests": false,
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Update Makefile tool versions via inline renovate comments",
+      "managerFilePatterns": ["/^Makefile$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[^\\s]+) depName=(?<depName>[^\\s]+)( versioning=(?<versioning>[^\\s]+))?\\n[A-Z_]+\\s*:=\\s*(?<currentValue>[^\\s]+)"
+      ]
+    },
+    {
+      "customType": "regex",
+      "description": "Update .mise.toml tool pins via inline renovate comments",
+      "managerFilePatterns": ["/^\\.mise\\.toml$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[^\\s]+) depName=(?<depName>[^\\s]+)( extractVersion=(?<extractVersion>[^\\s]+))?( versioning=(?<versioning>[^\\s]+))?\\n[a-zA-Z_-]+\\s*=\\s*\"(?<currentValue>[^\"]+)\""
+      ]
+    }
   ],
+  "vulnerabilityAlerts": {
+    "labels": ["security"],
+    "automerge": true,
+    "minimumReleaseAge": "0 days"
+  },
   "packageRules": [
     {
-      "description": "Automerge major updates",
-      "matchUpdateTypes": [
-        "major"
-      ],
-      "automerge": true,
-      "automergeType": "pr",
-      "platformAutomerge": true
-    },
-    {
-      "description": "Automerge non-major updates",
-      "matchUpdateTypes": [
-        "minor",
-        "patch",
-        "digest",
-        "pin",
-        "pinDigest"
-      ],
-      "automerge": true,
-      "automergeType": "pr",
-      "platformAutomerge": true
-    },
-    {
-      "description": "Automerge github-actions updates",
-      "matchManagers": [
-        "github-actions"
-      ],
-      "automerge": true,
-      "automergeType": "pr",
-      "platformAutomerge": true
-    },
-    {
       "description": "Wait 3 days before automerging major updates",
-      "matchUpdateTypes": [
-        "major"
-      ],
+      "matchUpdateTypes": ["major"],
       "minimumReleaseAge": "3 days"
     },
     {
       "description": "Group GitHub Actions into one PR",
-      "matchManagers": [
-        "github-actions"
-      ],
+      "matchManagers": ["github-actions"],
       "groupName": "GitHub Actions"
+    },
+    {
+      "description": "Group Dapr SDK dependencies",
+      "matchPackageNames": ["/^github\\.com\\/dapr/"],
+      "groupName": "Dapr SDK"
+    },
+    {
+      "description": "Bump Go version in go.mod to latest patch",
+      "matchManagers": ["gomod"],
+      "matchDepNames": ["go"],
+      "rangeStrategy": "bump"
+    },
+    {
+      "description": "Disable first-party images built locally — not published to a registry",
+      "matchPackageNames": ["/^andriykalashnykov\\/dapr-go-/"],
+      "enabled": false
     }
-  ],
-  "automergeType": "branch",
-  "automerge": true,
-  "ignoreTests": false,
-  "automergeStrategy": "squash",
-  "vulnerabilityAlerts": {
-    "labels": [
-      "security"
-    ],
-    "automerge": true,
-    "minimumReleaseAge": "0 days"
-  }
+  ]
 }

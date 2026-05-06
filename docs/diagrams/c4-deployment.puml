@@ -1,0 +1,57 @@
+@startuml c4-deployment
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/v2.11.0/C4_Deployment.puml
+
+skinparam backgroundColor #FAFAFA
+skinparam shadowing false
+skinparam roundCorner 4
+skinparam defaultFontName "Inter, Helvetica, Arial, sans-serif"
+skinparam defaultFontSize 13
+skinparam ArrowColor #37474F
+skinparam ArrowThickness 1.2
+skinparam rectangleBorderThickness 1.3
+
+UpdateElementStyle("container",    $fontColor="#FFFFFF", $bgColor="#2563EB", $borderColor="#1E3A8A")
+UpdateElementStyle("container_db", $fontColor="#FFFFFF", $bgColor="#7C3AED", $borderColor="#4C1D95")
+UpdateBoundaryStyle($bgColor="#F1F5F9", $borderColor="#94A3B8", $fontColor="#1E293B")
+
+title dapr-go — Deployment View (KinD + cloud-provider-kind)
+
+Deployment_Node(host, "Developer host", "Linux/macOS, Docker Engine") {
+  Deployment_Node(kind_node, "KinD node container", "kindest/node:v1.34.0") {
+
+    Deployment_Node(ns_dapr_system, "namespace: dapr-system") {
+      Container(dapr_operator, "dapr-operator + sidecar-injector", "Helm chart dapr/dapr v1.15.10")
+      Container(dapr_dashboard, "dapr-dashboard", "Helm chart dapr/dapr-dashboard v1.15.0")
+    }
+
+    Deployment_Node(ns_dapr_go, "namespace: dapr-go") {
+      Deployment_Node(pod_write, "Pod: write-values", "annotation: dapr.io/enabled=true") {
+        Container(c_write,    "write-values", "Go 1.26")
+        Container(c_dapr_w,   "daprd",        "Sidecar")
+      }
+      Deployment_Node(pod_read, "Pod: read-values", "annotation: dapr.io/enabled=true") {
+        Container(c_read,     "read-values", "Go 1.26")
+        Container(c_dapr_r,   "daprd",       "Sidecar")
+      }
+      Deployment_Node(pod_sub, "Pod: subscriber") {
+        Container(c_sub,      "subscriber", "Go 1.26")
+      }
+      Deployment_Node(pod_front, "Pod: frontendsvc", "annotation: dapr.io/enabled=true") {
+        Container(c_front,    "frontendsvc", "Go 1.26")
+        Container(c_dapr_f,   "daprd",       "Sidecar")
+      }
+      ContainerDb(redis_pod, "redis-master", "Bitnami chart, ClusterIP, replication arch")
+    }
+  }
+
+  Container(cpk, "cloud-provider-kind", "Host process — assigns LB IPs to type=LoadBalancer Services")
+}
+
+Rel(c_dapr_w, redis_pod, "RESP — saves state, publishes")
+Rel(c_dapr_r, redis_pod, "RESP — reads state")
+Rel(c_dapr_f, redis_pod, "RESP — orders state")
+Rel(c_dapr_w, c_sub, "Routes 'notifications' topic via Subscription CR", "HTTP POST /notifications")
+Rel(cpk, kind_node, "Manages LoadBalancer IPs", "Docker network")
+
+SHOW_LEGEND()
+@enduml

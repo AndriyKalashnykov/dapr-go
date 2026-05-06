@@ -1,0 +1,44 @@
+@startuml c4-container
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/v2.11.0/C4_Container.puml
+
+skinparam backgroundColor #FAFAFA
+skinparam shadowing false
+skinparam roundCorner 4
+skinparam defaultFontName "Inter, Helvetica, Arial, sans-serif"
+skinparam defaultFontSize 13
+skinparam ArrowColor #37474F
+skinparam ArrowThickness 1.2
+skinparam rectangleBorderThickness 1.3
+
+UpdateElementStyle("person",       $fontColor="#FFFFFF", $bgColor="#0F766E", $borderColor="#134E4A")
+UpdateElementStyle("container",    $fontColor="#FFFFFF", $bgColor="#2563EB", $borderColor="#1E3A8A")
+UpdateElementStyle("container_db", $fontColor="#FFFFFF", $bgColor="#7C3AED", $borderColor="#4C1D95")
+UpdateElementStyle("container_ext",$fontColor="#FFFFFF", $bgColor="#64748B", $borderColor="#334155")
+UpdateBoundaryStyle($bgColor="#F1F5F9", $borderColor="#94A3B8", $fontColor="#1E293B")
+
+title dapr-go — Container View
+
+Person(user, "Operator / Client")
+
+System_Boundary(dapr_go, "dapr-go (Kubernetes namespace: dapr-go)") {
+  Container(write_values, "write-values", "Go 1.26, chi v5, dapr/go-sdk", "POST /?value=N\nAppends to state, publishes to topic 'notifications'")
+  Container(read_values,  "read-values",  "Go 1.26, chi v5, dapr/go-sdk", "GET /\nReads state 'values', returns numeric average")
+  Container(subscriber,   "subscriber",   "Go 1.26, chi v5",              "POST /notifications\nReceives Dapr-routed pub/sub events")
+  Container(frontendsvc,  "state/frontendsvc", "Go 1.26, net/http, dapr/go-sdk", "POST /orders/new, GET /orders/order/{id}\nIndependent state demo")
+
+  Container_Ext(dapr_sidecar, "Dapr sidecar (daprd)", "v1.15.10, injected via dapr.io/enabled annotation")
+  ContainerDb(redis, "Redis", "Bitnami Helm chart", "Backs both 'statestore' and 'notifications-pubsub'\nDapr components")
+}
+
+Rel(user, write_values, "POST /?value=N", "HTTP")
+Rel(user, read_values,  "GET /",          "HTTP")
+Rel(user, frontendsvc,  "POST /orders/new", "HTTP")
+
+Rel(write_values, dapr_sidecar, "SaveState + PublishEvent", "gRPC")
+Rel(read_values,  dapr_sidecar, "GetState",                 "gRPC")
+Rel(frontendsvc,  dapr_sidecar, "Save/GetState",            "gRPC")
+Rel(dapr_sidecar, subscriber,   "POST /notifications (Subscription CR)", "HTTP")
+Rel(dapr_sidecar, redis,        "RESP")
+
+SHOW_LEGEND()
+@enduml
