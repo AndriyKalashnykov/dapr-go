@@ -45,14 +45,24 @@ pick_port() {
 # missing-key endpoints (frontend probe) routinely return 405/404, both
 # of which are valid routability signals.
 wait_for_url() {
-  local label="$1"; local url="$2"; local attempts="${3:-60}"
+  local label="$1" url="$2" attempts="${3:-60}"
+  local code
   for i in $(seq 1 "$attempts"); do
-    code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 "$url" || echo 000)
-    if [ "$code" != "000" ] && [ "$code" != "" ]; then
-      echo "  ${label}: reachable after ${i}s (HTTP ${code})"
-      return 0
-    fi
-    sleep 1
+    # Capture HTTP status code. Suppress stderr; curl writes "000" to
+    # %{http_code} when it never received a response (DNS failure, conn
+    # refused, timeout). Anything in 100-599 means the data plane wired
+    # the response back to us — that's "routable", regardless of what
+    # the app did with it (200, 404, 405 are all valid signals).
+    code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 "$url" 2>/dev/null || true)
+    case "$code" in
+      ''|000)
+        sleep 1
+        ;;
+      *)
+        echo "  ${label}: reachable after ${i}s (HTTP ${code})"
+        return 0
+        ;;
+    esac
   done
   echo "  ${label}: NOT reachable after ${attempts}s"
   return 1
