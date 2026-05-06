@@ -52,7 +52,7 @@ The Dapr component names (`statestore`, `notifications-pubsub`) must match the n
 - `make test` runs `go test -race -cover` inside each service module via a `case`-dispatch loop. Single-service: `cd read-values && go test -race -cover ./...`.
 - `make integration-test` runs `go test -tags=integration` per Dapr-using module (write-values, read-values, state/frontendsvc; subscriber is skipped — no Dapr/Redis interaction). Uses Testcontainers Redis to validate JSON wire-format roundtrip + the cross-service contract.
 - `make static-check` is the composite gate: lint + vulncheck + diagrams-check + trivy-fs. Run before pushing.
-- `make image-build` produces `andriykalashnykov/dapr-go-<service>:v0.0.1`; `IMAGE_TAG` and `IMAGE_REPO_PREFIX` are overridable.
+- `make image-build` produces `ghcr.io/andriykalashnykov/dapr-go/<service>:<git-tag-without-v>` — same path/tag shape that `docker/metadata-action` publishes from CI, so KinD-loaded images and `kubectl apply` resolve to identical refs. `IMAGE_REPO_PREFIX` and `IMAGE_TAG` (defaults: `ghcr.io/andriykalashnykov/dapr-go` and `git describe --tags --abbrev=0 \| sed 's/^v//'`) are overridable.
 - `make release NEWTAG=vX.Y.Z` is interactive (prompts for confirmation), tags + pushes. Do not invoke without explicit user approval.
 - `make ci-run` runs the full GitHub Actions workflow locally via `act`.
 
