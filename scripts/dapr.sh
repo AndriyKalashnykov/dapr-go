@@ -8,7 +8,6 @@ SCRIPT_PARENT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 . "${SCRIPT_DIR}/env.sh"
 
 DAPR_VERSION="${DAPR_VERSION:-1.15.10}"
-DAPR_DASHBOARD_VERSION="${DAPR_DASHBOARD_VERSION:-1.15.0}"
 
 SCRIPT_ACTION="${1:-deploy}"
 DAPRGO_NS="${2:-${DEFAULT_NS}}"
@@ -28,12 +27,6 @@ case "${SCRIPT_ACTION}" in
       --namespace dapr-system \
       --create-namespace \
       --wait
-    helm upgrade --install dapr-dashboard dapr/dapr-dashboard \
-      --kube-context "${KUBECTL_CTX}" \
-      --version "${DAPR_DASHBOARD_VERSION}" \
-      --namespace dapr-system \
-      --set serviceType=LoadBalancer \
-      --wait
     "${KUBECTL[@]}" create namespace "${DAPRGO_NS}" --dry-run=client -o yaml | "${KUBECTL[@]}" apply -f -
     "${KUBECTL[@]}" apply -f "${SCRIPT_PARENT_DIR}/k8s/dapr/permissions/dapr-permissions.yaml" \
       --server-side --force-conflicts
@@ -42,7 +35,6 @@ case "${SCRIPT_ACTION}" in
   undeploy)
     "${KUBECTL[@]}" delete --ignore-not-found=true \
       -f "${SCRIPT_PARENT_DIR}/k8s/dapr/permissions/dapr-permissions.yaml"
-    helm uninstall dapr-dashboard --kube-context "${KUBECTL_CTX}" --namespace dapr-system || true
     helm uninstall dapr --kube-context "${KUBECTL_CTX}" --namespace dapr-system || true
     ;;
 esac
