@@ -1,17 +1,11 @@
 [tools]
-# renovate: datasource=github-tags depName=go extractVersion=^go(?<version>.+)$
+# Versions tracked by Renovate's native `mise` manager (see renovate.json
+# enabledManagers). The manager queries github-tags/github-releases/
+# golang-version per backend; no inline `# renovate:` annotations needed.
 go = "1.26.2"
-
-# renovate: datasource=github-releases depName=kubernetes-sigs/kind
 kind = "0.27.0"
-
-# renovate: datasource=github-releases depName=kubernetes/kubectl extractVersion=^v(?<version>.+)$
 kubectl = "1.34.0"
-
-# renovate: datasource=github-releases depName=helm/helm
 helm = "3.18.0"
-
-# renovate: datasource=github-releases depName=dapr/cli
 "aqua:dapr/cli" = "1.15.1"
 
 [settings]
