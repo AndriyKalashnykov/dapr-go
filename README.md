@@ -11,7 +11,7 @@ Reference implementation of four Go microservices using two Dapr building blocks
 
 | Component | Technology |
 |-----------|-----------|
-| Language | Go 1.26.2 (multi-module — one `go.mod` per service) |
+| Language | Go 1.26.4 (multi-module — one `go.mod` per service) |
 | HTTP routers | [chi](https://github.com/go-chi/chi) v5 (read-values, write-values, subscriber); `net/http` (frontendsvc) |
 | Dapr client | [dapr/go-sdk](https://github.com/dapr/go-sdk) |
 | Runtime | Dapr 1.15.10 — sidecar-injection model |
