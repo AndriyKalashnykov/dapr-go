@@ -358,6 +358,8 @@ release:
 	@if [ -z "$(NEWTAG)" ]; then \
 		echo "Provide NEWTAG (current: $(CURRENTTAG))" >&2; exit 1; \
 	fi
+	@if git rev-parse -q --verify "refs/tags/$(NEWTAG)" >/dev/null 2>&1; then echo "ERROR: tag $(NEWTAG) already exists locally. Pick a new version or delete it: git tag -d $(NEWTAG)"; exit 1; fi
+	@if git ls-remote --exit-code --tags origin "refs/tags/$(NEWTAG)" >/dev/null 2>&1; then echo "ERROR: tag $(NEWTAG) already exists on origin. Pick a new version."; exit 1; fi
 	@echo -n "Are you sure to create and push $(NEWTAG)? [y/N] " && read ans && [ $${ans:-N} = y ]
 	@echo $(NEWTAG) > version.txt
 	@git add version.txt
