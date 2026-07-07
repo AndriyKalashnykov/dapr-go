@@ -27,7 +27,7 @@ System_Boundary(dapr_go, "dapr-go (Kubernetes namespace: dapr-go)") {
   Container(subscriber,   "subscriber",   "Go 1.26, chi v5",              "POST /notifications\nReceives Dapr-routed pub/sub events")
   Container(frontendsvc,  "state/frontendsvc", "Go 1.26, net/http, dapr/go-sdk", "POST /orders/new, GET /orders/order/{id}\nIndependent state demo")
 
-  Container_Ext(dapr_sidecar, "Dapr sidecar (daprd)", "v1.15.10, injected via dapr.io/enabled annotation")
+  Container_Ext(dapr_sidecar, "Dapr sidecar (daprd)", "v1.18.1, injected via dapr.io/enabled annotation")
   ContainerDb(redis, "Redis", "redis:8-alpine (k8s manifest)", "Backs both 'statestore' and 'notifications-pubsub'\nDapr components", $tags="datastore")
 }
 

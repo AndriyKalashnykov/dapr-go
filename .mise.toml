@@ -3,10 +3,10 @@
 # enabledManagers). The manager queries github-tags/github-releases/
 # golang-version per backend; no inline `# renovate:` annotations needed.
 go = "1.26.4"
-kind = "0.27.0"
-kubectl = "1.34.0"
-helm = "3.18.0"
-"aqua:dapr/cli" = "1.15.1"
+kind = "0.32.0"
+kubectl = "1.36.2"
+helm = "4.2.2"
+"aqua:dapr/cli" = "1.18.0"
 
 # Lint / security / local-CI tooling — migrated off `go install`/manual
 # curl-installers in the Makefile so Renovate's `mise` manager tracks every

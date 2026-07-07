@@ -18,6 +18,12 @@ import (
 
 const stateStoreName = "statestore"
 
+// Health endpoint names (the `{endpoint}` path value on GET /health/{endpoint}).
+const (
+	endpointReadiness = "readiness"
+	endpointLiveness  = "liveness"
+)
+
 // HTTP server timeout defaults (gosec G114: net/http serve helpers with no
 // timeout support are vulnerable to slowloris-style resource exhaustion).
 const (
@@ -143,7 +149,7 @@ func getOrder(w http.ResponseWriter, r *http.Request) {
 // the route pattern.
 func healthCheck(w http.ResponseWriter, r *http.Request) {
 	switch r.PathValue("endpoint") {
-	case "readiness":
+	case endpointReadiness:
 		// Readiness reflects the Dapr connection so traffic waits for a working sidecar.
 		if !daprReady.Load() {
 			http.Error(w, `{"ok":false}`, http.StatusServiceUnavailable)
@@ -151,7 +157,7 @@ func healthCheck(w http.ResponseWriter, r *http.Request) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
-	case "liveness":
+	case endpointLiveness:
 		// Liveness is process-alive only — never gated on the sidecar, so a slow
 		// sidecar can't cause a restart loop.
 		w.Header().Set("Content-Type", "application/json")

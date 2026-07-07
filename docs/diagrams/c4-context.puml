@@ -21,7 +21,7 @@ Person(user, "Operator / Client", "Posts values, reads averages")
 
 System(dapr_go, "dapr-go", "Four Go services demonstrating Dapr State Management and Pub/Sub building blocks on Kubernetes")
 
-System_Ext(dapr, "Dapr", "Sidecar runtime injected per pod\n(v1.15.10)")
+System_Ext(dapr, "Dapr", "Sidecar runtime injected per pod\n(v1.18.1)")
 System_Ext(redis, "Redis", "State store + Pub/Sub broker\n(redis:8-alpine, k8s manifest)")
 
 Rel(user, dapr_go, "POST /?value=N, GET /, POST /orders/new", "HTTP")

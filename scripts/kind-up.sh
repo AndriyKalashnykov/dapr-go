@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=env.sh
 . "${SCRIPT_DIR}/env.sh"
 
-KIND_NODE_IMAGE="${KIND_NODE_IMAGE:-kindest/node:v1.34.0}"
+KIND_NODE_IMAGE="${KIND_NODE_IMAGE:-kindest/node:v1.36.1}"
 
 if kind get clusters 2>/dev/null | grep -qx "${KIND_CLUSTER_NAME}"; then
   echo "KinD cluster '${KIND_CLUSTER_NAME}' already exists; skipping create"
