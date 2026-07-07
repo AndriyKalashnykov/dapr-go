@@ -51,10 +51,16 @@ NEWTAG    ?=
 # `:=` (not `?=`) — a stray same-named env var must not silently repoint
 # every image reference; override explicitly via `make IMAGE_REPO_PREFIX=... `.
 IMAGE_REPO_PREFIX := ghcr.io/andriykalashnykov/dapr-go
-# Strip the `v` prefix from the latest git tag (metadata-action's
-# semver pattern emits 0.1.0 for tag v0.1.0). Falls back to 0.0.0 on a
-# fresh checkout with no tags.
-IMAGE_TAG         ?= $(shell git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo 0.0.0)
+# Derived from version.txt (the committed source of truth for the release
+# version, e.g. `v0.1.0`), with the `v` prefix stripped to match the k8s
+# manifests' `image:` tags and metadata-action's semver output (0.1.0).
+# version.txt is ALWAYS present, so this resolves identically in a shallow CI
+# checkout — unlike `git describe --tags`, which returns nothing (→ 0.0.0) when
+# CI clones without tags, causing `deploy-workloads` to build `:0.0.0` while the
+# manifests reference `:0.1.0`, so KinD silently pulls the STALE published image
+# from GHCR instead of the just-built branch code (the e2e then tests old code).
+# Falls back to git-describe then 0.0.0 only if version.txt is missing.
+IMAGE_TAG         ?= $(shell sed 's/^v//' version.txt 2>/dev/null || git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo 0.0.0)
 
 SERVICES := read-values subscriber write-values frontendsvc
 
@@ -167,6 +173,23 @@ check-toolchain-alignment:
 	fi; \
 	echo "check-toolchain-alignment: OK (go $$misefile across 4x go.mod + .mise.toml; golang:$$misemajmin across 4x Dockerfile)"
 
+#check-image-tag-alignment: @ Verify IMAGE_TAG (from version.txt) matches every k8s manifest image tag (else e2e silently tests the stale GHCR image)
+check-image-tag-alignment:
+	@set -e; \
+	bad=0; \
+	for tag in $$(grep -hoE '$(IMAGE_REPO_PREFIX)/[a-z-]+:[0-9][0-9.]*' k8s/apps/*.yaml | sed 's|.*:||' | sort -u); do \
+		if [ "$$tag" != "$(IMAGE_TAG)" ]; then \
+			echo "ERROR: k8s manifest image tag :$$tag != IMAGE_TAG ($(IMAGE_TAG), from version.txt)"; \
+			bad=1; \
+		fi; \
+	done; \
+	if [ "$$bad" -ne 0 ]; then \
+		echo "check-image-tag-alignment: FAILED — bump version.txt and the k8s/apps manifest image tags together." >&2; \
+		echo "  Otherwise 'deploy-workloads' builds :$(IMAGE_TAG) but the manifests reference a different tag, so KinD pulls the STALE published image from GHCR and the e2e tests old code." >&2; \
+		exit 1; \
+	fi; \
+	echo "check-image-tag-alignment: OK (all k8s/apps image tags == $(IMAGE_TAG))"
+
 #lint: @ Run golangci-lint across every service module (includes gocritic, gosec via .golangci.yml)
 lint: deps-tools
 	@for svc in $(SERVICES); do \
@@ -198,7 +221,7 @@ trivy-fs:
 		fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 .
 
 #static-check: @ Composite static gate (toolchain alignment + lint-ci + lint + vulncheck + secrets + diagrams-check + trivy-fs)
-static-check: check-toolchain-alignment lint-ci lint vulncheck secrets diagrams-check trivy-fs
+static-check: check-toolchain-alignment check-image-tag-alignment lint-ci lint vulncheck secrets diagrams-check trivy-fs
 
 # ---------------------------------------------------------------------------
 # Dependency hygiene
@@ -440,7 +463,7 @@ release:
 
 .PHONY: help \
 	deps deps-tools deps-act \
-	build build-linux-amd64 clean test integration-test check-toolchain-alignment \
+	build build-linux-amd64 clean test integration-test check-toolchain-alignment check-image-tag-alignment \
 	lint lint-ci vulncheck secrets trivy-fs static-check \
 	get update \
 	image-build image-push \
