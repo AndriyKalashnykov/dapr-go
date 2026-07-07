@@ -182,7 +182,9 @@ jobs:
           - { name: frontendsvc,  dir: state/frontendsvc }
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
+      # No setup-qemu-action: images are amd64-only, built natively on the
+      # amd64 runner. QEMU is only needed to emulate a non-native arch (arm64),
+      # which was the dominant wall-time cost — dropped for build speed.
       - uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
 
       - name: Docker metadata
@@ -268,16 +270,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # All gates passed → publish multi-arch (provenance: false + sbom: false
+      # All gates passed → publish linux/amd64 (provenance: false + sbom: false
       # keeps the image index free of unknown/unknown entries so GHCR's
       # Packages UI renders the "OS / Arch" tab). Cosign signing below
-      # provides Sigstore supply-chain verification.
+      # provides Sigstore supply-chain verification. arm64 was dropped for
+      # build speed (QEMU emulation was the dominant cost); re-add
+      # linux/arm64 here + setup-qemu-action above to restore multi-arch.
       - name: Build and push
         id: push
         uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
         with:
           context: ./${{ matrix.dir }}
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

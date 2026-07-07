@@ -5,7 +5,7 @@
 
 # Dapr State + Pub/Sub Reference for Go
 
-Reference implementation of Dapr's State Management and Pub/Sub building blocks in Go, running on Kubernetes via per-pod sidecar injection — four independent Go modules that interact only through their `daprd` sidecars over localhost gRPC. The **runtime surface** exposes chi-routed HTTP handlers backed by a single Redis (`redis:8-alpine`) instance serving as both the Dapr state store and pub/sub broker on KinD + `cloud-provider-kind`; the **delivery surface** covers an `mise`-pinned toolchain, a golangci-lint + govulncheck + gitleaks + actionlint (shellcheck-backed) + PlantUML diagram-drift static gate, Testcontainers-driven integration tests, a KinD end-to-end harness, and a Trivy-gated, cosign keyless-signed multi-arch GHCR publish pipeline kept current by Renovate.
+Reference implementation of Dapr's State Management and Pub/Sub building blocks in Go, running on Kubernetes via per-pod sidecar injection — four independent Go modules that interact only through their `daprd` sidecars over localhost gRPC. The **runtime surface** exposes chi-routed HTTP handlers backed by a single Redis (`redis:8-alpine`) instance serving as both the Dapr state store and pub/sub broker on KinD + `cloud-provider-kind`; the **delivery surface** covers an `mise`-pinned toolchain, a golangci-lint + govulncheck + gitleaks + actionlint (shellcheck-backed) + PlantUML diagram-drift static gate, Testcontainers-driven integration tests, a KinD end-to-end harness, and a Trivy-gated, cosign keyless-signed `linux/amd64` GHCR publish pipeline kept current by Renovate.
 
 <p align="center"><img src="docs/diagrams/out/c4-context.png" alt="C4 Context — dapr-go" width="900"></p>
 
@@ -21,7 +21,7 @@ Reference implementation of Dapr's State Management and Pub/Sub building blocks 
 | Static analysis | [golangci-lint](https://golangci-lint.run/) (gocritic, gosec via `.golangci.yml`), [govulncheck](https://go.dev/security/vuln/), [gitleaks](https://github.com/gitleaks/gitleaks), [actionlint](https://github.com/rhysd/actionlint) | Catches code smells, known CVEs, committed secrets, and workflow-YAML bugs before push |
 | Testing | [Testcontainers-go](https://golang.testcontainers.org/) (Redis) | Validates the JSON wire-format roundtrip and cross-service contract without a live cluster |
 | Security scanning | [Trivy](https://github.com/aquasecurity/trivy) (filesystem + image, HIGH/CRITICAL fixed-only), [cosign](https://github.com/sigstore/cosign) keyless OIDC signing | Blocks known-vulnerable images pre-publish; signs every published digest for supply-chain verification |
-| Container build | Docker Buildx (QEMU, `linux/amd64` + `linux/arm64`) | Single Dockerfile cross-compiles via `BUILDPLATFORM`/`TARGETARCH`, no per-arch Dockerfile |
+| Container build | Docker Buildx (`linux/amd64`) | Single Dockerfile cross-compiles via `BUILDPLATFORM`/`TARGETARCH` (arch-agnostic); arm64 dropped for build speed |
 | Dependency management | [Renovate](https://docs.renovatebot.com/) (`gomod`, `github-actions`, `dockerfile`, `kubernetes`, `mise`, `custom.regex` managers) | Keeps every pinned version — including `.mise.toml` — current automatically |
 | CI | GitHub Actions | `changes` → `static-check` → `build`/`test`/`integration-test` → `e2e` → `docker` → `ci-pass` |
 
@@ -117,7 +117,7 @@ The build pipeline produces two artefact tiers per service, each gated by a sepa
 | Compile | `make build` | `<service>/main` (current platform) | `make build-linux-amd64` cross-compiles for the container image |
 | OCI image | `make image-build` | `ghcr.io/andriykalashnykov/dapr-go/<service>:<tag>` (local Docker daemon, `linux/amd64`, `--load`) | Multi-stage Dockerfile (`golang:1.26-alpine` builder → `alpine:3.23` runtime, non-root UID 10001) |
 
-For tag-gated registry publication see [CI/CD](#cicd) — the `docker` job builds each of the four services for scan, Trivy-scans, smoke-tests, pushes multi-arch (`linux/amd64,linux/arm64`) to GHCR, and cosign-signs every digest.
+For tag-gated registry publication see [CI/CD](#cicd) — the `docker` job builds each of the four services for scan, Trivy-scans, smoke-tests, pushes `linux/amd64` to GHCR, and cosign-signs every digest.
 
 ### Testing
 
@@ -168,7 +168,7 @@ Run `make help` to see all targets.
 | Target | Description |
 |--------|-------------|
 | `make image-build` | Build local Docker images for all services (`linux/amd64`, `--load`) — Dockerfile does its own Go build |
-| `make image-push` | Build and push multi-arch images (`linux/amd64,linux/arm64`) to the registry |
+| `make image-push` | Build and push `linux/amd64` images to the registry (arm64 dropped for build speed) |
 
 ### KinD cluster + Dapr lifecycle
 
@@ -219,7 +219,7 @@ Run `make help` to see all targets.
 | `integration-test` | after `static-check` | `make integration-test` (Testcontainers Redis) |
 | `e2e` | after `build`, `test` | `make kind-deploy` → `make e2e` → `make kind-down` (always); diagnostic dump on failure |
 | `image-test` | after `build`, `test` (runs on code changes, not tag-gated) | `make image-test` — container-structure-test asserts the Dockerfile contract (USER 10001, `/app/main` present+owned, entrypoint) on each built image |
-| `docker` | tag-gated (`v*` only); requires `e2e` to have succeeded | Per-service matrix: build for scan → Trivy → smoke → multi-arch push → cosign sign |
+| `docker` | tag-gated (`v*` only); requires `e2e` to have succeeded | Per-service matrix: build for scan → Trivy → smoke → `linux/amd64` push → cosign sign |
 | `ci-pass` | always | Aggregator — fails if any required upstream job failed/cancelled |
 
 ### Pre-push image hardening
@@ -231,10 +231,10 @@ The `docker` job runs the following gates **before** any image is pushed to GHCR
 | 1 | Build local single-arch image (linux/amd64, `--load`) | Build regressions on the runner architecture; multi-stage Go build inside the container | `docker/build-push-action` with `load: true` |
 | 2 | **Trivy image scan** (CRITICAL/HIGH, fixed only) | CVEs in the alpine base, Go binary, and transitive deps | `aquasecurity/trivy-action` with `image-ref:` |
 | 3 | **Smoke test** | Image boots correctly on its own. `subscriber` uses a boot-marker probe; the Dapr-using services (which `dapr.NewClient()` upstream and exit without a sidecar) use a container-shape probe asserting UID 10001 + `/app/main` is owned by `app:app` and executable. | `docker run` |
-| 4 | Multi-arch build + push | Publishes for both `linux/amd64` and `linux/arm64` | `docker/build-push-action` with `provenance: false` + `sbom: false` |
+| 4 | Build + push | Publishes `linux/amd64` (arm64 dropped for build speed; re-add `linux/arm64` + `setup-qemu-action` to restore multi-arch) | `docker/build-push-action` with `provenance: false` + `sbom: false` |
 | 5 | **Cosign keyless OIDC signing** | Sigstore signature on the manifest digest | `sigstore/cosign-installer` + `cosign sign --yes` |
 
-Buildkit in-manifest attestations (`provenance` + `sbom`) are deliberately disabled so the image index stays free of `unknown/unknown` platform entries — that lets the GHCR Packages UI render the "OS / Arch" tab for the multi-arch manifest. Cosign keyless signing still provides a Sigstore signature for supply-chain verification.
+Buildkit in-manifest attestations (`provenance` + `sbom`) are deliberately disabled so the image index stays free of `unknown/unknown` platform entries — that keeps the GHCR Packages UI "OS / Arch" tab rendering the real `linux/amd64` entry (and remains correct if `linux/arm64` is re-added later). Cosign keyless signing still provides a Sigstore signature for supply-chain verification.
 
 Verify a published image's signature with:
 
