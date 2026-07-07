@@ -1,15 +1,24 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	dapr "github.com/dapr/go-sdk/client"
 
 	"github.com/andriykalashnykov/dapr-go-frontendsvc/internal/types"
 )
+
+// testStableOrderID is a fixed order ID used by tests that need a
+// deterministic idGen (goconst: was repeated as a "order-deadbeef" literal
+// 4 times across this file).
+const testStableOrderID = "order-deadbeef"
 
 type fakeOrderClient struct {
 	getResult *dapr.StateItem
@@ -35,27 +44,27 @@ func (f *fakeOrderClient) SaveState(_ context.Context, _, key string, data []byt
 func TestSaveOrder_HappyPath(t *testing.T) {
 	t.Parallel()
 	fc := &fakeOrderClient{}
-	stableID := func() string { return "order-deadbeef" }
+	stableID := func() string { return testStableOrderID }
 
 	got, err := saveOrder(context.Background(), fc, "statestore",
 		types.Order{Items: []string{"pizza", "cola"}}, stableID)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if got.ID != "order-deadbeef" {
-		t.Errorf("ID=%q, want order-deadbeef", got.ID)
+	if got.ID != testStableOrderID {
+		t.Errorf("ID=%q, want %s", got.ID, testStableOrderID)
 	}
 	if !got.Received || !got.Completed {
 		t.Errorf("Received/Completed flags not set: %+v", got)
 	}
-	if fc.saves != 1 || fc.saveKey != "order-deadbeef" {
-		t.Errorf("saves=%d key=%q, want 1/order-deadbeef", fc.saves, fc.saveKey)
+	if fc.saves != 1 || fc.saveKey != testStableOrderID {
+		t.Errorf("saves=%d key=%q, want 1/%s", fc.saves, fc.saveKey, testStableOrderID)
 	}
 	var persisted types.Order
 	if err := json.Unmarshal(fc.saveGot, &persisted); err != nil {
 		t.Fatalf("persisted payload not valid JSON: %v", err)
 	}
-	if persisted.ID != "order-deadbeef" || len(persisted.Items) != 2 {
+	if persisted.ID != testStableOrderID || len(persisted.Items) != 2 {
 		t.Errorf("persisted=%+v", persisted)
 	}
 }
@@ -79,7 +88,7 @@ func TestLoadOrder_HappyPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if string(got) != string(payload) {
+	if !bytes.Equal(got, payload) {
 		t.Errorf("loadOrder returned %q, want %q", got, payload)
 	}
 }
@@ -109,5 +118,21 @@ func TestLoadOrder_GetStateError(t *testing.T) {
 	_, err := loadOrder(context.Background(), fc, "statestore", "order-1")
 	if err == nil || !errors.Is(err, want) {
 		t.Errorf("err=%v, want wrap of %v", err, want)
+	}
+}
+
+// TestPostOrder_MalformedJSON_Returns400 exercises the HTTP handler's own
+// decode branch (postOrder, not saveOrder): a body that fails json.Decode
+// must short-circuit with 400 before ever touching the Dapr client.
+// Hermetic — no Dapr sidecar, no network.
+func TestPostOrder_MalformedJSON_Returns400(t *testing.T) {
+	t.Parallel()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/orders/new", strings.NewReader("{not valid json"))
+	rec := httptest.NewRecorder()
+
+	postOrder(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d, want %d", rec.Code, http.StatusBadRequest)
 	}
 }

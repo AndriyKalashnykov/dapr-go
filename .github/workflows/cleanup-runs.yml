@@ -4,12 +4,19 @@ on:
   schedule:
     - cron: '0 0 * * 0'
   workflow_dispatch:
+  workflow_call:
+
+concurrency:
+  group: cleanup-${{ github.workflow }}
+  cancel-in-progress: true
 
 permissions:
+  contents: read
   actions: write
+  pull-requests: read   # gh pr list (open-PR head SHAs, retained below); required on private repos
 
 jobs:
-  cleanup:
+  cleanup-runs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
@@ -19,8 +26,49 @@ jobs:
     steps:
       - name: Delete old workflow runs
         run: |
-          CUTOFF=$(date -u -d "$RETAIN_DAYS days ago" +%Y-%m-%dT%H:%M:%SZ)
+          CUTOFF=$(date -u -d "${RETAIN_DAYS} days ago" +%Y-%m-%dT%H:%M:%SZ)
+          # Head SHAs of OPEN PRs — their CI run carries the required status
+          # check; deleting it strands the PR on a MISSING required check
+          # (BLOCKED, 0 checks). Retain regardless of age.
+          OPEN_SHAS=$(gh pr list --repo "${{ github.repository }}" --state open \
+            --json headRefOid --jq '[.[].headRefOid]')
+          # Retain the newest KEEP_MINIMUM runs PER WORKFLOW (group_by
+          # .workflowName), THEN delete any remaining run older than CUTOFF
+          # whose head SHA is not an open PR. A single GLOBAL minimum
+          # deregisters low-frequency workflows.
           gh run list --repo "${{ github.repository }}" \
-            --json databaseId,createdAt --limit 200 \
-            --jq "sort_by(.createdAt) | reverse | .[$KEEP_MINIMUM:] | .[] | select(.createdAt < \\"$CUTOFF\\") | .databaseId" \
+            --json databaseId,createdAt,workflowName,headSha --limit 300 \
+          | jq -r --arg cutoff "$CUTOFF" --argjson keep "$KEEP_MINIMUM" --argjson open "$OPEN_SHAS" '
+              group_by(.workflowName)
+              | map(sort_by(.createdAt) | reverse | .[$keep:])
+              | add // []
+              | .[]
+              | select(.createdAt < $cutoff)
+              | select(.headSha as $s | ($open | index($s)) | not)
+              | .databaseId
+            ' \
           | xargs -r -I{} gh run delete {} --repo "${{ github.repository }}"
+
+  cleanup-caches:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Delete caches from merged/deleted branches
+        run: |
+          echo "=== Cleaning caches from non-existent branches ==="
+          gh cache list --repo "${{ github.repository }}" --json id,ref,key --limit 200 \
+          | jq -r '.[] | "\(.id)\t\(.ref)\t\(.key)"' \
+          | while IFS=$'\t' read -r id ref key; do
+              branch="${ref#refs/heads/}"
+              # Keep caches for main, default branch, and tags
+              if [ "$branch" = "main" ] || [[ "$ref" == refs/tags/* ]]; then
+                continue
+              fi
+              # Check if branch still exists
+              if ! gh api "repos/${{ github.repository }}/branches/${branch}" --silent 2>/dev/null; then
+                echo "Deleting cache ${key} (branch ${branch} no longer exists)"
+                gh cache delete "$id" --repo "${{ github.repository }}" 2>/dev/null || true
+              fi
+            done

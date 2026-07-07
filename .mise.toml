@@ -8,5 +8,19 @@ kubectl = "1.34.0"
 helm = "3.18.0"
 "aqua:dapr/cli" = "1.15.1"
 
+# Lint / security / local-CI tooling — migrated off `go install`/manual
+# curl-installers in the Makefile so Renovate's `mise` manager tracks every
+# version in one place (see /makefile skill "mise migration coverage").
+golangci-lint = "2.12.2"
+gitleaks = "8.30.1"
+actionlint = "1.7.12"
+shellcheck = "0.11.0"
+act = "0.2.89"
+"aqua:kubernetes-sigs/cloud-provider-kind" = "0.11.1"
+# go: backend — compiled by `mise install` using the pinned `go` above, so
+# it always builds against the same toolchain as go.mod (see /makefile
+# skill "go: backend analyzers are COMPILED by mise install").
+"go:golang.org/x/vuln/cmd/govulncheck" = "1.5.0"
+
 [settings]
 experimental = true

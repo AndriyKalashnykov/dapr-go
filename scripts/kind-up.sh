@@ -12,6 +12,11 @@ if kind get clusters 2>/dev/null | grep -qx "${KIND_CLUSTER_NAME}"; then
   echo "KinD cluster '${KIND_CLUSTER_NAME}' already exists; skipping create"
 else
   echo "Creating KinD cluster '${KIND_CLUSTER_NAME}' (image: ${KIND_NODE_IMAGE})"
+  # Self-heal: an interrupted prior run can leave a stray "<name>-control-plane"
+  # Docker container behind without `kind get clusters` listing it, which makes
+  # `kind create cluster` fail with a name conflict. Delete-then-create so a
+  # rerun after an interrupted run works.
+  kind delete cluster --name "${KIND_CLUSTER_NAME}" >/dev/null 2>&1 || true
   kind create cluster \
     --name "${KIND_CLUSTER_NAME}" \
     --image "${KIND_NODE_IMAGE}" \

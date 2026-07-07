@@ -1,5 +1,6 @@
 @startuml c4-container
 !include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/v2.11.0/C4_Container.puml
+LAYOUT_LEFT_RIGHT()
 
 skinparam backgroundColor #FAFAFA
 skinparam shadowing false
@@ -12,9 +13,9 @@ skinparam rectangleBorderThickness 1.3
 
 UpdateElementStyle("person",       $fontColor="#FFFFFF", $bgColor="#0F766E", $borderColor="#134E4A")
 UpdateElementStyle("container",    $fontColor="#FFFFFF", $bgColor="#2563EB", $borderColor="#1E3A8A")
-UpdateElementStyle("container_db", $fontColor="#FFFFFF", $bgColor="#7C3AED", $borderColor="#4C1D95")
-UpdateElementStyle("container_ext",$fontColor="#FFFFFF", $bgColor="#64748B", $borderColor="#334155")
+UpdateElementStyle("external_container", $fontColor="#FFFFFF", $bgColor="#64748B", $borderColor="#334155")
 UpdateBoundaryStyle($bgColor="#F1F5F9", $borderColor="#94A3B8", $fontColor="#1E293B")
+AddElementTag("datastore", $fontColor="#FFFFFF", $bgColor="#7C3AED", $borderColor="#4C1D95")
 
 title dapr-go — Container View
 
@@ -27,7 +28,7 @@ System_Boundary(dapr_go, "dapr-go (Kubernetes namespace: dapr-go)") {
   Container(frontendsvc,  "state/frontendsvc", "Go 1.26, net/http, dapr/go-sdk", "POST /orders/new, GET /orders/order/{id}\nIndependent state demo")
 
   Container_Ext(dapr_sidecar, "Dapr sidecar (daprd)", "v1.15.10, injected via dapr.io/enabled annotation")
-  ContainerDb(redis, "Redis", "Bitnami Helm chart", "Backs both 'statestore' and 'notifications-pubsub'\nDapr components")
+  ContainerDb(redis, "Redis", "redis:8-alpine (k8s manifest)", "Backs both 'statestore' and 'notifications-pubsub'\nDapr components", $tags="datastore")
 }
 
 Rel(user, write_values, "POST /?value=N", "HTTP")

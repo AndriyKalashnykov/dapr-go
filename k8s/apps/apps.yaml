@@ -17,18 +17,49 @@ spec:
         dapr.io/app-port: "8080"
         dapr.io/log-level: "debug"
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: read-values
           image: ghcr.io/andriykalashnykov/dapr-go/read-values:0.1.0
           env:
             - name: DAPR_PORT
               value: "50001"
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 10001
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
           resources:
+            requests:
+              memory: "32Mi"
+              cpu: "25m"
             limits:
               memory: "128Mi"
               cpu: "500m"
           ports:
             - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /health/readiness
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health/liveness
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 20
           imagePullPolicy: IfNotPresent
 ---
 apiVersion: v1
@@ -62,15 +93,46 @@ spec:
         dapr.io/app-port: "8080"
         dapr.io/log-level: "debug"
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: subscriber
           image: ghcr.io/andriykalashnykov/dapr-go/subscriber:0.1.0
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 10001
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
           resources:
+            requests:
+              memory: "32Mi"
+              cpu: "25m"
             limits:
               memory: "128Mi"
               cpu: "500m"
           ports:
             - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /health/readiness
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health/liveness
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 20
           imagePullPolicy: IfNotPresent
 ---
 apiVersion: v1
@@ -104,6 +166,13 @@ spec:
         dapr.io/app-port: "8080"
         dapr.io/log-level: "debug"
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: write-values
           image: ghcr.io/andriykalashnykov/dapr-go/write-values:0.1.0
@@ -112,12 +181,36 @@ spec:
               value: "50001"
             - name: APP_PORT
               value: "8080"
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 10001
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
           resources:
+            requests:
+              memory: "32Mi"
+              cpu: "25m"
             limits:
               memory: "128Mi"
               cpu: "500m"
           ports:
             - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /health/readiness
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health/liveness
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 20
           imagePullPolicy: IfNotPresent
 ---
 apiVersion: v1

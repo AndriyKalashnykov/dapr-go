@@ -21,7 +21,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 . "${REPO_ROOT}/scripts/env.sh"
 
 DAPRGO_NS="${DAPRGO_NS:-${DEFAULT_NS}}"
-TIMEOUT_S="${TIMEOUT_S:-180}"
+TIMEOUT_S="${TIMEOUT_S:-300}"
 
 PASS=0
 FAIL=0
@@ -153,11 +153,17 @@ status=$(curl -sf -o /dev/null -w '%{http_code}' -X POST "http://${WRITE_IP}/?va
 if [ "$status" != "200" ]; then
   fail "POST write-values value=${MARKER} → ${status} (expected 200)"
 else
-  # Poll subscriber logs for up to 30s for the marker.
+  # Poll subscriber logs for up to 30s for the marker. Match the
+  # decode-confirmed log line ("Subscriber received on /notifications: ...")
+  # rather than a bare grep for the marker: subscriber/main.go logs the raw
+  # httputil.DumpRequest BEFORE json.Unmarshal, so a bare marker grep would
+  # false-PASS even if the CloudEvent envelope failed to decode (the raw
+  # dump line still contains the marker). The decode-confirmed line is only
+  # emitted after a successful json.Unmarshal into Result.
   found=false
   for i in $(seq 1 30); do
     if "${KUBECTL[@]}" -n "${DAPRGO_NS}" logs deployment/subscriber --tail=200 2>/dev/null \
-         | grep -q "${MARKER}"; then
+         | grep -q "Subscriber received on /notifications: ${MARKER}"; then
       found=true
       pass "subscriber received marker ${MARKER} after ${i}s"
       break
@@ -165,7 +171,7 @@ else
     sleep 1
   done
   if ! $found; then
-    fail "subscriber did NOT log marker ${MARKER} within 30s"
+    fail "subscriber did NOT log a decode-confirmed marker ${MARKER} within 30s"
     "${KUBECTL[@]}" -n "${DAPRGO_NS}" logs deployment/subscriber --tail=50 2>&1 | sed 's/^/    /'
   fi
 fi

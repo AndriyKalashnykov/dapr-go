@@ -10,32 +10,27 @@ export PATH := $(HOME)/.local/share/mise/shims:$(HOME)/.local/bin:$(PATH)
 # ---------------------------------------------------------------------------
 # Pinned tool versions — Renovate-tracked via inline comments
 # ---------------------------------------------------------------------------
-
-# renovate: datasource=github-releases depName=jdx/mise
-MISE_VERSION := 2025.10.0
-
-# renovate: datasource=github-releases depName=kubernetes-sigs/kind
-KIND_VERSION := 0.27.0
-# Bumped together with KIND_VERSION per kind release notes.
-KIND_NODE_IMAGE := kindest/node:v1.34.0
-
-# renovate: datasource=go depName=sigs.k8s.io/cloud-provider-kind
-CLOUD_PROVIDER_KIND_VERSION := v0.7.0
-
-# renovate: datasource=github-releases depName=golangci/golangci-lint
-GOLANGCI_VERSION := v2.5.0
-
-# renovate: datasource=go depName=golang.org/x/vuln/cmd/govulncheck
-GOVULNCHECK_VERSION := v1.1.4
+#
+# Lint/vuln/CLI toolchain (golangci-lint, govulncheck, act, gitleaks,
+# actionlint, shellcheck, cloud-provider-kind, kind, kubectl, helm, dapr,
+# go) all live in .mise.toml — tracked by Renovate's native `mise` manager,
+# no inline annotations needed here. Only tools this project invokes via
+# `docker run` (never installed on the host) keep a Makefile constant:
 
 # renovate: datasource=docker depName=plantuml/plantuml
 PLANTUML_VERSION := 1.2025.7
 
 # renovate: datasource=docker depName=aquasec/trivy
+# Docker-invoked exception (like plantuml above) — trivy IS mise-installable
+# (aqua:aquasecurity/trivy) but trivy-fs runs via `docker run` for a
+# hermetic, host-independent scan; keep this pin rather than migrating.
 TRIVY_VERSION := 0.69.1
 
-# renovate: datasource=github-releases depName=nektos/act
-ACT_VERSION := 0.2.87
+# renovate: datasource=docker depName=catthehacker/ubuntu versioning=loose
+ACT_UBUNTU_VERSION := act-latest-20260629
+
+# renovate: datasource=docker depName=kindest/node
+KIND_NODE_IMAGE := kindest/node:v1.34.0@sha256:7416a61b42b1662ca6ca89f02028ac133a309a2a30ba309614e8ec94d976dc5a
 
 # ---------------------------------------------------------------------------
 # Project metadata
@@ -53,11 +48,19 @@ NEWTAG    ?=
 # manifest in k8s/apps/*.yaml resolves the same image whether it's loaded
 # into KinD locally (`make deploy-workloads` → `kind load docker-image`)
 # or pulled from the registry by a non-KinD deploy.
-IMAGE_REPO_PREFIX ?= ghcr.io/andriykalashnykov/dapr-go
-# Strip the `v` prefix from the latest git tag (metadata-action's
-# semver pattern emits 0.1.0 for tag v0.1.0). Falls back to 0.0.0 on a
-# fresh checkout with no tags.
-IMAGE_TAG         ?= $(shell git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo 0.0.0)
+# `:=` (not `?=`) — a stray same-named env var must not silently repoint
+# every image reference; override explicitly via `make IMAGE_REPO_PREFIX=... `.
+IMAGE_REPO_PREFIX := ghcr.io/andriykalashnykov/dapr-go
+# Derived from version.txt (the committed source of truth for the release
+# version, e.g. `v0.1.0`), with the `v` prefix stripped to match the k8s
+# manifests' `image:` tags and metadata-action's semver output (0.1.0).
+# version.txt is ALWAYS present, so this resolves identically in a shallow CI
+# checkout — unlike `git describe --tags`, which returns nothing (→ 0.0.0) when
+# CI clones without tags, causing `deploy-workloads` to build `:0.0.0` while the
+# manifests reference `:0.1.0`, so KinD silently pulls the STALE published image
+# from GHCR instead of the just-built branch code (the e2e then tests old code).
+# Falls back to git-describe then 0.0.0 only if version.txt is missing.
+IMAGE_TAG         ?= $(shell sed 's/^v//' version.txt 2>/dev/null || git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo 0.0.0)
 
 SERVICES := read-values subscriber write-values frontendsvc
 
@@ -77,33 +80,25 @@ GOFLAGS := -mod=mod
 help:
 	@echo "Usage: make COMMAND"
 	@echo "Commands :"
-	@grep -E '[a-zA-Z\.\-]+:.*?@ .*$$' $(MAKEFILE_LIST)| tr -d '#' | awk 'BEGIN {FS = ":.*?@ "}; {printf "\033[32m%-22s\033[0m - %s\n", $$1, $$2}'
+	@grep -E '[a-zA-Z0-9\.\-]+:.*?@ .*$$' $(MAKEFILE_LIST)| tr -d '#' | awk 'BEGIN {FS = ":.*?@ "}; {printf "\033[32m%-22s\033[0m - %s\n", $$1, $$2}'
 
 # ---------------------------------------------------------------------------
 # Dependencies
 # ---------------------------------------------------------------------------
 
-#deps: @ Full dev environment (toolchain via mise + Go tools + cloud-provider-kind)
+#deps: @ Full dev environment (all tools via mise — see .mise.toml)
 deps: deps-tools
-	@command -v cloud-provider-kind >/dev/null 2>&1 || { \
-		echo "Installing cloud-provider-kind@$(CLOUD_PROVIDER_KIND_VERSION) via go install..."; \
-		go install sigs.k8s.io/cloud-provider-kind@$(CLOUD_PROVIDER_KIND_VERSION); \
-	}
 
-#deps-tools: @ Install Go tools needed for static-check (mise toolchain + golangci-lint + govulncheck)
+#deps-tools: @ Install the mise-managed toolchain (Go, kind, kubectl, helm, dapr, golangci-lint, govulncheck, gitleaks, actionlint, shellcheck, act, cloud-provider-kind)
 deps-tools:
 	@command -v mise >/dev/null 2>&1 || { \
 		echo "Installing mise (no root required, installs to ~/.local/bin)..."; \
 		curl -fsSL https://mise.run | sh; \
 	}
 	@mise install --yes
-	@go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_VERSION)
-	@go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 
-#deps-act: @ Install act (local GitHub Actions runner)
-deps-act:
-	@command -v act >/dev/null 2>&1 || \
-		go install github.com/nektos/act@$(ACT_VERSION)
+#deps-act: @ Install act (local GitHub Actions runner) — mise-managed; alias for deps-tools
+deps-act: deps-tools
 
 # ---------------------------------------------------------------------------
 # Build / test / lint
@@ -153,30 +148,80 @@ integration-test:
 		(cd "$$dir" && GOFLAGS=$(GOFLAGS) go test -tags=integration -race -count=1 -timeout 300s ./...); \
 	done
 
-#lint: @ Run golangci-lint across every service module
-lint:
+#check-toolchain-alignment: @ Verify Go version matches across every go.mod, .mise.toml, and Dockerfile (prevents Renovate split-PR deadlock)
+check-toolchain-alignment:
+	@set -e; \
+	misefile=$$(grep -oP '^go\s*=\s*"\K[0-9]+\.[0-9]+\.[0-9]+' .mise.toml); \
+	misemajmin=$$(echo "$$misefile" | grep -oP '^[0-9]+\.[0-9]+'); \
+	mismatch=0; \
+	for svc in $(SERVICES); do \
+		case "$$svc" in frontendsvc) dir=state/frontendsvc ;; *) dir=$$svc ;; esac; \
+		gomod=$$(grep -oP '^go \K[0-9]+\.[0-9]+\.[0-9]+' "$$dir/go.mod"); \
+		dockerfile=$$(grep -oP 'golang:\K[0-9]+\.[0-9]+' "$$dir/Dockerfile" | head -1); \
+		if [ "$$gomod" != "$$misefile" ]; then \
+			echo "ERROR: Go version mismatch — $$dir/go.mod ($$gomod) != .mise.toml go ($$misefile)"; \
+			mismatch=1; \
+		fi; \
+		if [ "$$dockerfile" != "$$misemajmin" ]; then \
+			echo "ERROR: Go version mismatch — $$dir/Dockerfile (golang:$$dockerfile) != .mise.toml minor ($$misemajmin)"; \
+			mismatch=1; \
+		fi; \
+	done; \
+	if [ "$$mismatch" -ne 0 ]; then \
+		echo "check-toolchain-alignment: FAILED — see errors above." >&2; \
+		exit 1; \
+	fi; \
+	echo "check-toolchain-alignment: OK (go $$misefile across 4x go.mod + .mise.toml; golang:$$misemajmin across 4x Dockerfile)"
+
+#check-image-tag-alignment: @ Verify IMAGE_TAG (from version.txt) matches every k8s manifest image tag (else e2e silently tests the stale GHCR image)
+check-image-tag-alignment:
+	@set -e; \
+	bad=0; \
+	for tag in $$(grep -hoE '$(IMAGE_REPO_PREFIX)/[a-z-]+:[0-9][0-9.]*' k8s/apps/*.yaml | sed 's|.*:||' | sort -u); do \
+		if [ "$$tag" != "$(IMAGE_TAG)" ]; then \
+			echo "ERROR: k8s manifest image tag :$$tag != IMAGE_TAG ($(IMAGE_TAG), from version.txt)"; \
+			bad=1; \
+		fi; \
+	done; \
+	if [ "$$bad" -ne 0 ]; then \
+		echo "check-image-tag-alignment: FAILED — bump version.txt and the k8s/apps manifest image tags together." >&2; \
+		echo "  Otherwise 'deploy-workloads' builds :$(IMAGE_TAG) but the manifests reference a different tag, so KinD pulls the STALE published image from GHCR and the e2e tests old code." >&2; \
+		exit 1; \
+	fi; \
+	echo "check-image-tag-alignment: OK (all k8s/apps image tags == $(IMAGE_TAG))"
+
+#lint: @ Run golangci-lint across every service module (includes gocritic, gosec via .golangci.yml)
+lint: deps-tools
 	@for svc in $(SERVICES); do \
 		case "$$svc" in frontendsvc) dir=state/frontendsvc ;; *) dir=$$svc ;; esac; \
 		echo ">> lint $$dir"; \
 		(cd "$$dir" && golangci-lint run ./...); \
 	done
 
+#lint-ci: @ Lint GitHub Actions workflows (actionlint; uses shellcheck for embedded run: blocks)
+lint-ci: deps-tools
+	@actionlint
+
 #vulncheck: @ Run govulncheck across every service module
-vulncheck:
+vulncheck: deps-tools
 	@for svc in $(SERVICES); do \
 		case "$$svc" in frontendsvc) dir=state/frontendsvc ;; *) dir=$$svc ;; esac; \
 		echo ">> vulncheck $$dir"; \
 		(cd "$$dir" && govulncheck ./...); \
 	done
 
-#trivy-fs: @ Trivy filesystem scan (HIGH+CRITICAL, fixed-only)
+#secrets: @ Scan for hardcoded secrets (gitleaks)
+secrets: deps-tools
+	@gitleaks detect --source . --verbose --redact
+
+#trivy-fs: @ Trivy filesystem scan (vuln+secret+misconfig; HIGH+CRITICAL, fixed-only)
 trivy-fs:
 	@docker run --rm -v "$$PWD:/src:ro" -w /src \
 		aquasec/trivy:$(TRIVY_VERSION) \
-		fs --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 .
+		fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 .
 
-#static-check: @ Composite static gate (lint + vulncheck + diagrams-check + trivy-fs)
-static-check: deps-tools lint vulncheck diagrams-check trivy-fs
+#static-check: @ Composite static gate (toolchain alignment + lint-ci + lint + vulncheck + secrets + diagrams-check + trivy-fs)
+static-check: check-toolchain-alignment check-image-tag-alignment lint-ci lint vulncheck secrets diagrams-check trivy-fs
 
 # ---------------------------------------------------------------------------
 # Dependency hygiene
@@ -296,7 +341,20 @@ DIAGRAM_OUTPUTS := $(patsubst docs/diagrams/%.puml,docs/diagrams/out/%.png,$(DIA
 #diagrams: @ Render all PlantUML sources to docs/diagrams/out/*.png
 diagrams: $(DIAGRAM_OUTPUTS)
 
-docs/diagrams/out/%.png: docs/diagrams/%.puml
+# Renderer-version stamp — Make's dependency graph is purely source-mtime
+# based and has no notion of "the tool that rendered this target changed",
+# so a PLANTUML_VERSION bump alone would never re-trigger the PNG rule
+# below. Depending on a version-named stamp file forces a rebuild: the
+# stamp for the OLD version already exists (nothing to do), but the stamp
+# for a NEW version doesn't, so Make (re)creates it — touching it newer
+# than the committed PNGs — which in turn makes the PNG rule's prerequisite
+# stale and forces a re-render.
+docs/diagrams/out/.plantuml-$(PLANTUML_VERSION).stamp:
+	@mkdir -p docs/diagrams/out
+	@rm -f docs/diagrams/out/.plantuml-*.stamp
+	@touch $@
+
+docs/diagrams/out/%.png: docs/diagrams/%.puml docs/diagrams/out/.plantuml-$(PLANTUML_VERSION).stamp
 	@mkdir -p docs/diagrams/out
 	@docker run --rm \
 		--user $$(id -u):$$(id -g) \
@@ -309,16 +367,18 @@ docs/diagrams/out/%.png: docs/diagrams/%.puml
 diagrams-clean:
 	@rm -rf docs/diagrams/out
 
-#diagrams-check: @ Verify committed PNGs are in sync with .puml sources
+#diagrams-check: @ Verify committed PNGs are in sync with .puml sources (fails on untracked drift too)
 diagrams-check:
 	@if [ -z "$(DIAGRAM_SOURCES)" ]; then \
 		echo "No PlantUML sources under docs/diagrams/; skipping"; \
 	else \
 		$(MAKE) diagrams; \
-		git diff --exit-code docs/diagrams/out || { \
-			echo "diagrams-check: rendered PNGs differ from committed copies — run 'make diagrams' and commit." >&2; \
+		drift=$$(git status --porcelain --untracked-files=all -- docs/diagrams/out); \
+		if [ -n "$$drift" ]; then \
+			echo "diagrams-check: rendered PNGs differ from committed copies (including untracked new files) — run 'make diagrams' and commit." >&2; \
+			echo "$$drift" >&2; \
 			exit 1; \
-		}; \
+		fi; \
 	fi
 
 # ---------------------------------------------------------------------------
@@ -328,9 +388,42 @@ diagrams-check:
 #ci: @ Full local CI pipeline (deps → static-check → test → integration-test → build → image-build)
 ci: deps static-check test integration-test build image-build
 
-#ci-run: @ Run the GitHub Actions workflow locally via act
+#ci-run: @ Run the GitHub Actions workflow locally via act (jobs serialized)
 ci-run: deps-act
-	@act push --container-architecture linux/amd64
+	@docker container prune -f 2>/dev/null || true
+	@# Jobs are invoked one at a time via `act --job`. On real GitHub runners
+	@# parallel jobs each get their own VM; under act they share the host
+	@# Docker daemon, so serializing keeps `ci-run` honest without host-port
+	@# collisions between jobs.
+	@#
+	@# Skipped jobs:
+	@#   - e2e:      Docker-in-Docker KinD doesn't run cleanly under act.
+	@#   - docker:   tag-gated (`if: startsWith(github.ref, 'refs/tags/')`);
+	@#               our synthetic push event carries no tag ref, so the job
+	@#               would just no-op — verify via a real tag push instead.
+	@#   - ci-pass:  aggregator over e2e/docker; only meaningful on real CI.
+	@if [ -z "$${GITHUB_TOKEN:-}" ] && command -v gh >/dev/null 2>&1; then \
+		export GITHUB_TOKEN="$$(gh auth token 2>/dev/null)"; \
+	fi; \
+	secret_args=(); \
+	[ -n "$${GITHUB_TOKEN:-}" ] && secret_args+=(--secret GITHUB_TOKEN); \
+	evt=$$(mktemp /tmp/act-push-event.XXXXXX.json); \
+	printf '{"ref":"refs/heads/main","repository":{"default_branch":"main","name":"dapr-go","full_name":"andriykalashnykov/dapr-go"}}' >"$$evt"; \
+	ACT_PORT=$$(shuf -i 40000-59999 -n 1); \
+	ARTIFACT_PATH=$$(mktemp -d -t act-artifacts.XXXXXX); \
+	rc=0; \
+	for j in static-check build test integration-test; do \
+		echo "==== act push --job $$j ===="; \
+		act push --job "$$j" --container-architecture linux/amd64 \
+			-P ubuntu-latest=catthehacker/ubuntu:$(ACT_UBUNTU_VERSION) \
+			--pull=false \
+			--eventpath "$$evt" \
+			--artifact-server-port "$$ACT_PORT" \
+			--artifact-server-path "$$ARTIFACT_PATH" \
+			"$${secret_args[@]}" || { rc=1; break; }; \
+	done; \
+	rm -f "$$evt"; \
+	exit $$rc
 
 # ---------------------------------------------------------------------------
 # Renovate
@@ -338,11 +431,11 @@ ci-run: deps-act
 
 #renovate-validate: @ Validate Renovate configuration
 renovate-validate:
-	@if [ -n "$$GH_ACCESS_TOKEN" ]; then \
-		GITHUB_COM_TOKEN=$$GH_ACCESS_TOKEN npx --yes renovate --platform=local; \
+	@if [ -n "$${GH_ACCESS_TOKEN:-}" ]; then \
+		GITHUB_COM_TOKEN=$$GH_ACCESS_TOKEN npx --yes renovate@latest --platform=local; \
 	else \
 		echo "Warning: GH_ACCESS_TOKEN not set, some lookups may fail"; \
-		npx --yes renovate --platform=local; \
+		npx --yes renovate@latest --platform=local; \
 	fi
 
 # ---------------------------------------------------------------------------
@@ -370,7 +463,8 @@ release:
 
 .PHONY: help \
 	deps deps-tools deps-act \
-	build build-linux-amd64 clean test integration-test lint vulncheck trivy-fs static-check \
+	build build-linux-amd64 clean test integration-test check-toolchain-alignment check-image-tag-alignment \
+	lint lint-ci vulncheck secrets trivy-fs static-check \
 	get update \
 	image-build image-push \
 	kind-up kind-down kind-deploy kind-destroy \

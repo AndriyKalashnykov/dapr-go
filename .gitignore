@@ -26,3 +26,12 @@ vendor
 .idea
 dist/
 main
+
+# Renderer-version stamp for docs/diagrams/out/%.png (Makefile) — forces
+# re-render when PLANTUML_VERSION bumps; not a rendered artifact itself.
+docs/diagrams/out/.plantuml-*.stamp
+# Stray per-service compiled binaries (canonical build uses `-o main`, ignored above)
+dapr-go-read-values
+dapr-go-write-values
+dapr-go-subscriber
+dapr-go-frontendsvc

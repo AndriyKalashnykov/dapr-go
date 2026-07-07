@@ -11,8 +11,8 @@ skinparam ArrowThickness 1.2
 skinparam rectangleBorderThickness 1.3
 
 UpdateElementStyle("container",    $fontColor="#FFFFFF", $bgColor="#2563EB", $borderColor="#1E3A8A")
-UpdateElementStyle("container_db", $fontColor="#FFFFFF", $bgColor="#7C3AED", $borderColor="#4C1D95")
 UpdateBoundaryStyle($bgColor="#F1F5F9", $borderColor="#94A3B8", $fontColor="#1E293B")
+AddElementTag("datastore", $fontColor="#FFFFFF", $bgColor="#7C3AED", $borderColor="#4C1D95")
 
 title dapr-go — Deployment View (KinD + cloud-provider-kind)
 
@@ -21,7 +21,6 @@ Deployment_Node(host, "Developer host", "Linux/macOS, Docker Engine") {
 
     Deployment_Node(ns_dapr_system, "namespace: dapr-system") {
       Container(dapr_operator, "dapr-operator + sidecar-injector", "Helm chart dapr/dapr v1.15.10")
-      Container(dapr_dashboard, "dapr-dashboard", "Helm chart dapr/dapr-dashboard v1.15.0")
     }
 
     Deployment_Node(ns_dapr_go, "namespace: dapr-go") {
@@ -40,7 +39,7 @@ Deployment_Node(host, "Developer host", "Linux/macOS, Docker Engine") {
         Container(c_front,    "frontendsvc", "Go 1.26")
         Container(c_dapr_f,   "daprd",       "Sidecar")
       }
-      ContainerDb(redis_pod, "redis-master", "Bitnami chart, ClusterIP, replication arch")
+      ContainerDb(redis_pod, "redis-master", "redis:8-alpine, ClusterIP", $tags="datastore")
     }
   }
 

@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	dapr "github.com/dapr/go-sdk/client"
@@ -150,5 +153,24 @@ func TestAppendAndPublish_PublishError(t *testing.T) {
 	// SaveState should have already succeeded — partial failure is observable.
 	if fc.saveCalls != 1 {
 		t.Errorf("saveCalls=%d, want 1", fc.saveCalls)
+	}
+}
+
+// TestHandle_MissingValue_Returns400 exercises the HTTP handler's own
+// validation branch (Handle, not appendAndPublish): a request with no
+// `value` query parameter must short-circuit with 400 before ever touching
+// the Dapr client. Hermetic — no Dapr sidecar, no network.
+func TestHandle_MissingValue_Returns400(t *testing.T) {
+	t.Parallel()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", http.NoBody)
+	rec := httptest.NewRecorder()
+
+	Handle(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d, want %d", rec.Code, http.StatusBadRequest)
+	}
+	if body := rec.Body.String(); !strings.Contains(body, errMissingValue.Error()) {
+		t.Errorf("body=%q, want to contain %q", body, errMissingValue.Error())
 	}
 }
