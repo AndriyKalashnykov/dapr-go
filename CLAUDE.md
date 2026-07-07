@@ -100,6 +100,14 @@ Separately, a handful of tool versions live as literals in the **Makefile** (`PL
 
 `make deps` (alias `make deps-tools`) bootstraps mise (if absent) and runs `mise install --yes` — that alone provisions everything above; nothing is `go install`ed anymore.
 
+## Upgrade Backlog
+
+Deferred, upstream-tracked bumps that are NOT drop-in — each is a coupled or major migration needing a cluster recreate + a green `make e2e` before merge. All are Renovate-tracked (native `mise` manager), so Renovate proposes each as a PR that the CI `e2e` job now genuinely validates (post the IMAGE_TAG-from-version.txt fix, KinD tests the branch build, not a stale GHCR image). Review the Renovate PR's e2e result rather than blind-bumping locally.
+
+- **kind + kubectl + `KIND_NODE_IMAGE` (paired).** Bumping the `kind` CLI requires moving `KIND_NODE_IMAGE` to a `kindest/node` tag in the new CLI's catalog and aligning `kubectl` (within one minor of the node version) — a cluster recreate. Do the three together in one PR; verify `make kind-deploy && make e2e`.
+- **Helm 3 → 4 (major).** Verify `scripts/dapr.sh`'s `helm upgrade --install dapr dapr/dapr` still works under Helm 4 (flag/behavior changes) before merging.
+- **Dapr CLI + runtime + `dapr/go-sdk` (coupled, 1.15 → 1.18 line).** The runtime (`DAPR_VERSION` in `scripts/dapr.sh`), the CLI (`aqua:dapr/cli`), and the Go SDK in each module's `go.mod` move as a set; the SDK/runtime contract fails at first component interaction, not at startup, so gate on a real `make e2e` (state + pubsub roundtrip), not just "sidecar healthy". This project uses only the SDK's state + pub/sub client (no `go-sdk/workflow`), so the v1.14 workflow-package move does not apply.
+
 ## Skills
 
 Use the following skills when working on related files:
