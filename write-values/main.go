@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	dapr "github.com/dapr/go-sdk/client"
@@ -33,6 +34,9 @@ var (
 		PubSubName:  GetenvOrDefault("PUB_SUB_NAME", "notifications-pubsub"),
 		PubSubTopic: GetenvOrDefault("PUB_SUB_TOPIC", "notifications"),
 	}
+	// daprReady flips true once the Dapr sidecar connection is established; the
+	// readiness probe reads it so traffic only flows to a pod with a working sidecar.
+	daprReady atomic.Bool
 )
 
 type MyValues struct {
@@ -50,33 +54,21 @@ func main() {
 // already executed (gocritic exitAfterDefer: log.Fatal[f] inside a deferred
 // scope would exit the process before defer daprClient.Close() could run).
 func run() error {
-	// The daprd sidecar and this app container start concurrently; NewClient can
-	// time out ("context deadline exceeded") while the sidecar is still loading
-	// components. Retry with bounded backoff instead of crashing the pod — a
-	// crash turns a transient startup race into CrashLoopBackOff under the probes.
-	var dc dapr.Client
-	var err error
-	for attempt := 1; attempt <= 15; attempt++ {
-		if dc, err = dapr.NewClient(); err == nil {
-			break
-		}
-		log.Printf("dapr client not ready (attempt %d/15): %v", attempt, err)
-		time.Sleep(3 * time.Second)
-	}
-	if err != nil {
-		return fmt.Errorf("dapr client: NewClient after 15 attempts: %w", err)
-	}
-	daprClient = dc
-	defer daprClient.Close()
-
 	port := GetenvOrDefault("APP_PORT", "8080")
 	r := chi.NewRouter()
 	r.Post("/", Handle)
-	r.Get("/health/{endpoint:readiness|liveness}", func(w http.ResponseWriter, _ *http.Request) {
+	// Health is served independently of the Dapr connection so the liveness probe
+	// never kills the pod while the sidecar is still starting. Readiness returns
+	// 200 only once the Dapr client is connected, so the Deployment's Available
+	// condition (and traffic) waits for a working sidecar without a kill/restart race.
+	r.Get("/health/{endpoint:readiness|liveness}", func(w http.ResponseWriter, req *http.Request) {
+		if chi.URLParam(req, "endpoint") == "readiness" && !daprReady.Load() {
+			http.Error(w, `{"ok":false}`, http.StatusServiceUnavailable)
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
 	})
-	log.Printf("Starting Write Values App in Port: %s", port)
 
 	srv := &http.Server{
 		Addr:              ":" + port,
@@ -86,7 +78,35 @@ func run() error {
 		WriteTimeout:      writeTimeout,
 		IdleTimeout:       idleTimeout,
 	}
-	if err := srv.ListenAndServe(); err != nil {
+	// Serve immediately (background) so liveness/readiness endpoints are reachable
+	// while we connect to the sidecar.
+	serveErr := make(chan error, 1)
+	go func() { serveErr <- srv.ListenAndServe() }()
+	log.Printf("Starting Write Values App in Port: %s", port)
+
+	// The daprd sidecar and this app start concurrently; NewClient can time out
+	// while the sidecar loads components. Retry with bounded backoff — the app is
+	// already serving /health, so a slow sidecar only delays readiness, never
+	// kills the pod (no CrashLoopBackOff, no probe knife-edge).
+	var dc dapr.Client
+	var err error
+	for attempt := 1; attempt <= 40; attempt++ {
+		if dc, err = dapr.NewClient(); err == nil {
+			break
+		}
+		log.Printf("dapr client not ready (attempt %d/40): %v", attempt, err)
+		time.Sleep(3 * time.Second)
+	}
+	if err != nil {
+		_ = srv.Close()
+		return fmt.Errorf("write-values: dapr client after 40 attempts: %w", err)
+	}
+	daprClient = dc
+	defer daprClient.Close()
+	daprReady.Store(true)
+	log.Printf("write-values: dapr client connected, readiness now true")
+
+	if err := <-serveErr; err != nil {
 		return fmt.Errorf("write-values: ListenAndServe: %w", err)
 	}
 	return nil

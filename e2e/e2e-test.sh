@@ -21,7 +21,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 . "${REPO_ROOT}/scripts/env.sh"
 
 DAPRGO_NS="${DAPRGO_NS:-${DEFAULT_NS}}"
-TIMEOUT_S="${TIMEOUT_S:-180}"
+TIMEOUT_S="${TIMEOUT_S:-300}"
 
 PASS=0
 FAIL=0

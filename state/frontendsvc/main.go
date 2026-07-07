@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sync/atomic"
 	"time"
 
 	dapr "github.com/dapr/go-sdk/client"
@@ -29,6 +30,9 @@ const (
 var (
 	appPort    = getenvOrDefault("APP_PORT", "8080")
 	daprClient dapr.Client
+	// daprReady flips true once the Dapr sidecar connection is established; the
+	// readiness probe reads it so traffic only flows to a pod with a working sidecar.
+	daprReady atomic.Bool
 )
 
 func main() {
@@ -42,27 +46,6 @@ func main() {
 // already executed (gocritic exitAfterDefer: log.Fatal[f] inside a deferred
 // scope would exit the process before defer daprClient.Close() could run).
 func run() error {
-	// The daprd sidecar and this app container start concurrently; NewClient can
-	// time out ("context deadline exceeded") while the sidecar is still loading
-	// components. Retry with bounded backoff instead of crashing the pod — a
-	// crash turns a transient startup race into CrashLoopBackOff under the probes.
-	var dc dapr.Client
-	var err error
-	for attempt := 1; attempt <= 15; attempt++ {
-		if dc, err = dapr.NewClient(); err == nil {
-			break
-		}
-		log.Printf("dapr client not ready (attempt %d/15): %v", attempt, err)
-		time.Sleep(3 * time.Second)
-	}
-	if err != nil {
-		return fmt.Errorf("dapr client: NewClient after 15 attempts: %w", err)
-	}
-	daprClient = dc
-	defer daprClient.Close()
-
-	log.Printf("frontend: starting service: port %s", appPort)
-
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /orders/new", postOrder)
 	mux.HandleFunc("GET /orders/order/{id}", getOrder)
@@ -76,7 +59,35 @@ func run() error {
 		WriteTimeout:      writeTimeout,
 		IdleTimeout:       idleTimeout,
 	}
-	if err := srv.ListenAndServe(); err != nil {
+	// Serve immediately (background) so liveness/readiness endpoints are reachable
+	// while we connect to the sidecar (health is decoupled from the Dapr connection).
+	serveErr := make(chan error, 1)
+	go func() { serveErr <- srv.ListenAndServe() }()
+	log.Printf("frontend: starting service: port %s", appPort)
+
+	// The daprd sidecar and this app start concurrently; NewClient can time out
+	// while the sidecar loads components. Retry with bounded backoff — the app is
+	// already serving /health, so a slow sidecar only delays readiness, never
+	// kills the pod (no CrashLoopBackOff, no probe knife-edge).
+	var dc dapr.Client
+	var err error
+	for attempt := 1; attempt <= 40; attempt++ {
+		if dc, err = dapr.NewClient(); err == nil {
+			break
+		}
+		log.Printf("dapr client not ready (attempt %d/40): %v", attempt, err)
+		time.Sleep(3 * time.Second)
+	}
+	if err != nil {
+		_ = srv.Close()
+		return fmt.Errorf("frontend: dapr client after 40 attempts: %w", err)
+	}
+	daprClient = dc
+	defer daprClient.Close()
+	daprReady.Store(true)
+	log.Printf("frontend: dapr client connected, readiness now true")
+
+	if err := <-serveErr; err != nil {
 		return fmt.Errorf("frontend: %w", err)
 	}
 	return nil
@@ -132,7 +143,17 @@ func getOrder(w http.ResponseWriter, r *http.Request) {
 // the route pattern.
 func healthCheck(w http.ResponseWriter, r *http.Request) {
 	switch r.PathValue("endpoint") {
-	case "readiness", "liveness":
+	case "readiness":
+		// Readiness reflects the Dapr connection so traffic waits for a working sidecar.
+		if !daprReady.Load() {
+			http.Error(w, `{"ok":false}`, http.StatusServiceUnavailable)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+	case "liveness":
+		// Liveness is process-alive only — never gated on the sidecar, so a slow
+		// sidecar can't cause a restart loop.
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
 	default:

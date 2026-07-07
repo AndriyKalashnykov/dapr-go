@@ -48,12 +48,6 @@ spec:
               cpu: "500m"
           ports:
             - containerPort: 8080
-          startupProbe:
-            httpGet:
-              path: /health/readiness
-              port: 8080
-            periodSeconds: 3
-            failureThreshold: 40
           readinessProbe:
             httpGet:
               path: /health/readiness
@@ -127,12 +121,6 @@ spec:
               cpu: "500m"
           ports:
             - containerPort: 8080
-          startupProbe:
-            httpGet:
-              path: /health/readiness
-              port: 8080
-            periodSeconds: 3
-            failureThreshold: 40
           readinessProbe:
             httpGet:
               path: /health/readiness
@@ -211,12 +199,6 @@ spec:
               cpu: "500m"
           ports:
             - containerPort: 8080
-          startupProbe:
-            httpGet:
-              path: /health/readiness
-              port: 8080
-            periodSeconds: 3
-            failureThreshold: 40
           readinessProbe:
             httpGet:
               path: /health/readiness
