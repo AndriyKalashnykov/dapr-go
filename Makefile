@@ -271,13 +271,13 @@ image-test: deps-tools image-build
 			--config compose/structure-test/service.yaml || exit 1; \
 	done
 
-#image-push: @ Build and push multi-arch images (linux/amd64,linux/arm64) to the registry
+#image-push: @ Build and push linux/amd64 images to the registry (arm64 dropped for build speed)
 image-push:
 	@for svc in $(SERVICES); do \
 		case "$$svc" in frontendsvc) dir=state/frontendsvc ;; *) dir=$$svc ;; esac; \
 		echo ">> image-push $$dir"; \
 		(cd "$$dir" && DOCKER_BUILDKIT=1 docker buildx build --push \
-			--platform linux/amd64,linux/arm64 \
+			--platform linux/amd64 \
 			--provenance=false --sbom=false \
 			--build-arg APK_UPGRADE_BUST=$(APK_UPGRADE_BUST) \
 			-t $(IMAGE_REPO_PREFIX)/$$svc:$(IMAGE_TAG) .); \
