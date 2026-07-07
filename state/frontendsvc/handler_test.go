@@ -136,3 +136,38 @@ func TestPostOrder_MalformedJSON_Returns400(t *testing.T) {
 		t.Fatalf("status=%d, want %d", rec.Code, http.StatusBadRequest)
 	}
 }
+
+// TestHealthCheck exercises the /health readiness-gating contract introduced to
+// survive the daprd sidecar-startup race: liveness is ALWAYS 200 (process-alive,
+// so a slow sidecar never triggers a restart), readiness is 503 until the Dapr
+// client connects (daprReady) and 200 after, and an unknown endpoint is 404.
+// Hermetic — no sidecar, no network; drives the handler directly with the
+// daprReady flag toggled.
+func TestHealthCheck(t *testing.T) {
+	tests := []struct {
+		name     string
+		endpoint string
+		ready    bool
+		want     int
+	}{
+		{"readiness before dapr connected → 503", endpointReadiness, false, http.StatusServiceUnavailable},
+		{"readiness after dapr connected → 200", endpointReadiness, true, http.StatusOK},
+		{"liveness is always 200 (independent of the sidecar)", endpointLiveness, false, http.StatusOK},
+		{"unknown health endpoint → 404", "startup", true, http.StatusNotFound},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			daprReady.Store(tc.ready)
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/health/"+tc.endpoint, nil)
+			req.SetPathValue("endpoint", tc.endpoint)
+			rec := httptest.NewRecorder()
+
+			healthCheck(rec, req)
+
+			if rec.Code != tc.want {
+				t.Fatalf("endpoint=%s ready=%v: status=%d, want %d", tc.endpoint, tc.ready, rec.Code, tc.want)
+			}
+		})
+	}
+	daprReady.Store(false) // reset shared package state for other tests
+}
