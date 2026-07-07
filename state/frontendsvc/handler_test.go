@@ -127,7 +127,7 @@ func TestLoadOrder_GetStateError(t *testing.T) {
 // Hermetic — no Dapr sidecar, no network.
 func TestPostOrder_MalformedJSON_Returns400(t *testing.T) {
 	t.Parallel()
-	req := httptest.NewRequest(http.MethodPost, "/orders/new", strings.NewReader("{not valid json"))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/orders/new", strings.NewReader("{not valid json"))
 	rec := httptest.NewRecorder()
 
 	postOrder(rec, req)

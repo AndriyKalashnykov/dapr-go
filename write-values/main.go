@@ -104,6 +104,7 @@ func Handle(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	//nolint:gosec // G706: value is CR/LF-sanitized via sanitizeLog before logging
 	log.Printf("write-values: persisted %d values, published %q", len(values.Values), sanitizeLog(value))
 	respondWithJSON(res, http.StatusOK, values)
 }

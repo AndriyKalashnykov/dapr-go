@@ -162,7 +162,7 @@ func TestAppendAndPublish_PublishError(t *testing.T) {
 // the Dapr client. Hermetic — no Dapr sidecar, no network.
 func TestHandle_MissingValue_Returns400(t *testing.T) {
 	t.Parallel()
-	req := httptest.NewRequest(http.MethodPost, "/", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", http.NoBody)
 	rec := httptest.NewRecorder()
 
 	Handle(rec, req)

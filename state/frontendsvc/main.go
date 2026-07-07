@@ -107,6 +107,7 @@ func getOrder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	//nolint:gosec // G705: JSON API response (Content-Type application/json set above), not HTML — no XSS surface
 	if _, err := w.Write(data); err != nil {
 		log.Printf("getOrder: write response: %s", err)
 	}
