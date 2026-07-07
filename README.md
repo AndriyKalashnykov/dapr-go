@@ -218,6 +218,7 @@ Run `make help` to see all targets.
 | `test` | after `static-check` | `make test` |
 | `integration-test` | after `static-check` | `make integration-test` (Testcontainers Redis) |
 | `e2e` | after `build`, `test` | `make kind-deploy` → `make e2e` → `make kind-down` (always); diagnostic dump on failure |
+| `image-test` | after `build`, `test` (runs on code changes, not tag-gated) | `make image-test` — container-structure-test asserts the Dockerfile contract (USER 10001, `/app/main` present+owned, entrypoint) on each built image |
 | `docker` | tag-gated (`v*` only); requires `e2e` to have succeeded | Per-service matrix: build for scan → Trivy → smoke → multi-arch push → cosign sign |
 | `ci-pass` | always | Aggregator — fails if any required upstream job failed/cancelled |
 

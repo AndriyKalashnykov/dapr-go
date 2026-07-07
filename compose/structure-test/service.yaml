@@ -1,0 +1,24 @@
+# Container-structure-test — asserts the Dockerfile CONTRACT (what the image IS),
+# orthogonal to the Trivy image scan (CVEs) and the smoke test (runtime boot).
+# All four services build from the identical multi-stage Dockerfile shape, so one
+# shared config covers them (run per-image by `make image-test`).
+schemaVersion: 2.0.0
+
+metadataTest:
+  user: "10001:10001"
+  entrypoint:
+    - /app/main
+
+fileExistenceTests:
+  - name: app binary present, executable, owned by the non-root app user
+    path: /app/main
+    shouldExist: true
+    uid: 10001
+    gid: 10001
+
+commandTests:
+  - name: container runs as non-root UID 10001
+    command: id
+    args: ["-u"]
+    expectedOutput:
+      - "(?m)^10001$"

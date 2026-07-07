@@ -4,9 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	dapr "github.com/dapr/go-sdk/client"
+	"github.com/go-chi/chi/v5"
 )
 
 type fakeStateGetter struct {
@@ -99,4 +102,38 @@ func TestAverageStoredValues_CorruptStoredJSON(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for corrupt stored JSON")
 	}
+}
+
+// TestHealthHandler exercises the readiness-gating contract (decoupled from the
+// Dapr connection to survive the sidecar-startup race): readiness returns 503
+// until daprReady, 200 after; liveness is always 200 (the chi route constrains
+// {endpoint} to readiness|liveness, so no other value reaches the handler).
+func TestHealthHandler(t *testing.T) {
+	tests := []struct {
+		name     string
+		endpoint string
+		ready    bool
+		want     int
+	}{
+		{"readiness before dapr connected -> 503", endpointReadiness, false, http.StatusServiceUnavailable},
+		{"readiness after dapr connected -> 200", endpointReadiness, true, http.StatusOK},
+		{"liveness is always 200", "liveness", false, http.StatusOK},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			daprReady.Store(tc.ready)
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/health/"+tc.endpoint, http.NoBody)
+			rctx := chi.NewRouteContext()
+			rctx.URLParams.Add("endpoint", tc.endpoint)
+			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+			rec := httptest.NewRecorder()
+
+			healthHandler(rec, req)
+
+			if rec.Code != tc.want {
+				t.Fatalf("endpoint=%s ready=%v: status=%d, want %d", tc.endpoint, tc.ready, rec.Code, tc.want)
+			}
+		})
+	}
+	daprReady.Store(false) // reset shared package state
 }

@@ -17,6 +17,7 @@ actionlint = "1.7.12"
 shellcheck = "0.11.0"
 act = "0.2.89"
 "aqua:kubernetes-sigs/cloud-provider-kind" = "0.11.1"
+"aqua:GoogleContainerTools/container-structure-test" = "1.22.1"
 # go: backend — compiled by `mise install` using the pinned `go` above, so
 # it always builds against the same toolchain as go.mod (see /makefile
 # skill "go: backend analyzers are COMPILED by mise install").
