@@ -26,7 +26,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: read-values
-          image: ghcr.io/andriykalashnykov/dapr-go/read-values:0.1.0
+          image: ghcr.io/andriykalashnykov/dapr-go/read-values:0.2.0
           env:
             - name: DAPR_PORT
               value: "50001"
@@ -102,7 +102,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: subscriber
-          image: ghcr.io/andriykalashnykov/dapr-go/subscriber:0.1.0
+          image: ghcr.io/andriykalashnykov/dapr-go/subscriber:0.2.0
           securityContext:
             allowPrivilegeEscalation: false
             runAsNonRoot: true
@@ -175,7 +175,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: write-values
-          image: ghcr.io/andriykalashnykov/dapr-go/write-values:0.1.0
+          image: ghcr.io/andriykalashnykov/dapr-go/write-values:0.2.0
           env:
             - name: DAPR_PORT
               value: "50001"
