@@ -262,6 +262,15 @@ image-build:
 			-t $(IMAGE_REPO_PREFIX)/$$svc:$(IMAGE_TAG) .); \
 	done
 
+#image-test: @ Assert the Dockerfile contract on each built image (container-structure-test — USER 10001, /app/main, entrypoint)
+image-test: deps-tools image-build
+	@for svc in $(SERVICES); do \
+		echo ">> image-test $$svc"; \
+		container-structure-test test \
+			--image $(IMAGE_REPO_PREFIX)/$$svc:$(IMAGE_TAG) \
+			--config compose/structure-test/service.yaml || exit 1; \
+	done
+
 #image-push: @ Build and push multi-arch images (linux/amd64,linux/arm64) to the registry
 image-push:
 	@for svc in $(SERVICES); do \
@@ -471,7 +480,7 @@ release:
 
 .PHONY: help \
 	deps deps-tools deps-act \
-	build build-linux-amd64 clean test integration-test check-toolchain-alignment check-image-tag-alignment \
+	build build-linux-amd64 clean test integration-test check-toolchain-alignment check-image-tag-alignment image-test \
 	lint lint-ci vulncheck secrets trivy-fs static-check \
 	get update \
 	image-build image-push \
