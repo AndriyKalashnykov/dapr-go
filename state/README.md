@@ -1,257 +1,62 @@
-## Saving application state
+# state/frontendsvc — Dapr State Management demo
 
-This example demonstrates how to build stateful applications using the [State Management](https://docs.dapr.io/developing-applications/building-blocks/state-management/) feature of Dapr to store application data in a key/value data store. 
+`frontendsvc` is one of the four services in this repo (see the top-level
+[README](../README.md) and [CLAUDE.md](../CLAUDE.md)). It is an **independent**
+demo of Dapr's [State Management](https://docs.dapr.io/developing-applications/building-blocks/state-management/)
+building block — separate from the `write-values`/`read-values`/`subscriber`
+pipeline — showing a plain `net/http` service that stores and retrieves orders
+through the Dapr sidecar rather than talking to Redis directly.
 
-### The Go application
+## Endpoints
 
-The Go application exposes two endpoints:
-* `/orders/new` - to create a new order
-* /orders/get/{id} - to retrieve order information
+| Method + path | Behaviour |
+|---------------|-----------|
+| `POST /orders/new` | Decode an order JSON body, generate a `crypto/rand` order ID, `SaveState` it to the `statestore` component, return `{"order":"…","status":"received"}`. `400` on a malformed body. |
+| `GET /orders/order/{id}` | `GetState` the order by ID; `404` if not found. |
+| `GET /health/{readiness\|liveness}` | k8s probes. Readiness is `503` until the Dapr client connects, then `200`; liveness is always `200` (see the sidecar-startup-race note in [CLAUDE.md](../CLAUDE.md)). |
 
-The Go source code makes use of the Dapr API to seamlessly connect to a configured key/value store, (in this case Redis) deployed in the cluster, to store and retrieve application data.
+All Dapr calls go over the injected sidecar's localhost gRPC API using
+`github.com/dapr/go-sdk`. The state-store component name (`statestore`) is
+defined in [`k8s/dapr/components/statestore.yaml`](../k8s/dapr/components/statestore.yaml)
+and backed by the `redis-master` Deployment ([`k8s/redis/redis.yaml`](../k8s/redis/redis.yaml)).
 
-![Simple service](./01-dapr-datastore.png)
+## Build & deploy
 
-
-### The source code
-
-The code is simple and uses `net/http` package to create a simple HTTP-based application that accepts HTTP requests at two endpoints. Let's see how that works.
-
-First, let's define some variables and types:
-
-```go
-var (
-	appPort    = os.Getenv("APP_PORT") // application port
-	stateStore = "statestore"        // Dapr ID for the configured data store
-	daprClient dapr.Client
-)
-
-// Order type to store incoming order
-type Order struct {
-	ID        string
-	Items     []string
-	Completed bool
-}
-```
-
-The following code snippet defines the HTTP endpoints and starts the server:
-
-```go
-func main() {
-	if appPort == "" {
-		appPort = "8080"
-	}
-
-	dc, err := dapr.NewClient()
-	...
-	daprClient = dc
-	defer daprClient.Close()
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("POST /orders/new", postOrder)
-	mux.HandleFunc("GET /orders/order/{id}", getOrder)
-
-	if err := http.ListenAndServe(":"+appPort, mux); err != nil {
-		log.Fatalf("frontend: %s", err)
-	}
-```
-
-Lastly, the followings defines the HTTP handlers referenced earlier. 
-
-The first snippets implements a handler for endpoint `/order/new` to handle order HTTP post requests:
-
-```go
-func postOrder(w http.ResponseWriter, r *http.Request) {
-	var receivedOrder Order
-	if err := json.NewDecoder(r.Body).Decode(&receivedOrder); err != nil {
-		http.Error(w, "unable to post order", http.StatusInternalServerError)
-		return
-	}
-
-	orderID := fmt.Sprintf("order-%x", rand.Int31())
-	receivedOrder.ID = orderID
-	receivedOrder.Completed = true
-
-	// marshal order for downstream processing
-	orderData, err := json.Marshal(receivedOrder)
-	if err != nil {
-		http.Error(w, "unable to post order", http.StatusInternalServerError)
-		return
-	}
-
-	// Use Dapr state management API to save application state
-	// Use the orderId as key to save value as JSON-encoded binary
-	if err := daprClient.SaveState(r.Context(), stateStore, orderID, orderData, nil); err != nil {
-		http.Error(w, "unable to post order", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	fmt.Fprintf(w, `{"order":"%s", "status":"received"}`, orderID)
-}
-```
-
-The next snippet defines a HTTP handler for endpoint `/orders/get/{id}` to retrieve order data:
-
-```go
-func getOrder(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-
-	// Use Dapr state management API to retrieve order by key
-	data, err := daprClient.GetState(r.Context(), stateStore, id, nil)
-	if err != nil {
-		log.Printf("get order data: %s", err)
-		http.Error(w, "unable to get order", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	fmt.Fprint(w, string(data.Value))
-}
-```
-
-
-### Building the container image with ko
-The code can be compiled and packaged as an OCI-compliant image using `ko` (note: update the `--platform` flag to match your environment):
-
-```
-cd ./state/frontendsvc
-ko build --local -B --platform=linux/amd64 .
-```
-
-Next, check to see if the images are in your local repository:
-
-```
-docker images
-
-REPOSITORY             TAG              IMAGE ID       CREATED         SIZE
-ko.local/frontendsvc   latest           6094bfc88ad3   2 days ago      16.9MB
-```
-
-Next, add the built image into your local Kind cluster:
-
-```
-kind load docker-image ko.local/frontendsvc:latest --name dapr-cluster
-```
-### Kubernetes configuration
-
-The configurations to run this example you will need:
-* A Kubernetes [Deployment](../k8s/apps/frontend.yaml) manifest 
-* A Dapr component for a [Redis data store](frontendsvc/dapr/redis-store.yaml).
-
-Because the code invokes the Dapr API, the application must be deployed along with the Dapr sidecar at runtime. You can read more about running Dapr-enabled applications on Kubernetes [here](https://docs.dapr.io/operations/hosting/kubernetes/).
-
-To enable the Dapr sidecar during deployment, you need to annotate your Kubernetes `Deployment` appropriately with Dapr metadata as shown in the following snippet:
-
-```yaml
-kind: Deployment
-metadata:
-  name: frontendsvc
-spec:
-...
-  template:
-    metadata:
-      labels:
-        app: frontendsvc
-      annotations:
-        dapr.io/enabled: "true"
-        dapr.io/app-id:  "frontendsvc"
-```
-
-You can see a full list of Dapr annotations [here](https://docs.dapr.io/reference/arguments-annotations-overview/).
-
-### Deploy the application
-The next step is to deploy the application to the Kubernetes cluster:
-
-```
-kubectl apply -f ./manifest
-```
-
-Use the `kubectl` command to verify the deployment:
-
-First, ensure the Dapr components are deployed properly in the cluster:
-
-```
-kubectl get components
-
-NAME           AGE
-orders-store   72m
-```
-
-We see component `order-store` is deployed with no problem.
-
-Next, ensure the application pod is deployed in the cluster:
-
-```
-kubectl get deployments -l app=frontendsvc -o wide
-
-NAME          READY   UP-TO-DATE   AVAILABLE   AGE   CONTAINERS    IMAGES                        SELECTOR
-frontendsvc   1/1     1            1           75m   frontendsvc   ko.local/frontendsvc:latest   app=frontendsvc
-```
-
-Also check that there are 2 containers running in the application pod (one for the app and the other for the Dapr sidecar):
-
-```
-kubectl get pods -l app=frontendsvc
-NAME                           READY   STATUS    RESTARTS   AGE
-frontendsvc-7c6bb8bf87-kpgvk   2/2     Running   0          3m3s
-```
-
-### Running the application
-To keep the application's configuration simple, we're going to use the Kubernetes port forwarding to access its HTTP endpoints:
-
-```
-kubectl port-forward deployment/frontendsvc 8080
-
-Forwarding from 127.0.0.1:8080 -> 8080
-Forwarding from [::1]:8080 -> 8080
-```
-
-Next, let's use `curl` to post an order to the `frontendsvc` endpoint:
+There is **no standalone build for this service** — it is built and deployed as
+part of the whole project, using the repo-root `Makefile`:
 
 ```bash
-curl -i -d '{ "items": ["automobile"]}'  -H "Content-type: application/json" "http://localhost:8080/orders/new"
-
-HTTP/1.1 200 OK
-Content-Type: application/json
-Date: Thu, 04 Apr 2024 00:54:21 GMT
-Content-Length: 47
+make image-build      # builds ghcr.io/andriykalashnykov/dapr-go/frontendsvc:<version.txt>
+make kind-deploy      # kind-up → deploy-dapr → deploy-components → deploy-workloads
+make e2e              # exercises the frontendsvc CRUD path end-to-end
 ```
 
-The result is a JSON payload showing the status of the order: 
+`deploy-workloads` applies [`k8s/apps/frontend.yaml`](../k8s/apps/frontend.yaml)
+(the `frontendsvc` Deployment + `frontend-svc` LoadBalancer Service, carrying the
+`dapr.io/enabled`/`dapr.io/app-id`/`dapr.io/app-port` annotations that trigger
+sidecar injection) and `kind load`s the locally-built image. See the top-level
+README's Deploy section for the full lifecycle and teardown.
 
-```json
-{"order":"order-4d3d076e", "status":"received"}
+## Try it
+
+`frontendsvc` is fronted by a `LoadBalancer` Service (`cloud-provider-kind`
+assigns the external IP). Resolve it, then:
+
+```bash
+IP=$(kubectl --context kind-dapr-go -n dapr-go get svc frontend-svc \
+       -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+
+curl -s -XPOST "http://$IP:8080/orders/new" \
+  -H 'Content-Type: application/json' -d '{"items":["automobile"]}'
+# -> {"order":"order-8008026f","status":"received"}
+
+curl -s "http://$IP:8080/orders/order/order-8008026f"
+# -> {"ID":"order-8008026f","Items":["automobile"],"Completed":true}
 ```
 
-Next, let's use endpoint `http://192.168.200.7:8080/orders/order/{id}` to retrieve the order from the state store:
+## Troubleshooting
 
-```
-curl -i  -H "Content-type: application/json" "http://192.168.200.7:8080/orders/order/order-428cbab8"
-
-HTTP/1.1 200 OK
-Content-Type: application/json
-Date: Thu, 04 Apr 2024 00:55:45 GMT
-Content-Length: 63
-```
-
-The result is JSON-encoded data about the retrieved order:
-
-```json
-{"ID":"order-4d3d076e","Items":["automobile"],"Completed":true}
-```
-
-### Troubleshooting
-If you run into errors or the order is not getting created properly, you can follow these troubleshooting steps to figure out what's going on.
-
-Review the Dapr sidecar container logs for the services
-
-```
-kubectl logs -n dapr-go -l app=frontendsvc -c daprd -f
-```
-
-Review the logs for the application services
-
-```
-kubectl logs -n dapr-go -l app=frontendsvc -f
+```bash
+kubectl --context kind-dapr-go -n dapr-go logs -l app=frontendsvc -c daprd -f       # sidecar
+kubectl --context kind-dapr-go -n dapr-go logs -l app=frontendsvc -c frontendsvc -f  # app
 ```

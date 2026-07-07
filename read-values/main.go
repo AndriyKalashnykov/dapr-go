@@ -15,6 +15,9 @@ import (
 
 const stateKey = "values"
 
+// endpointReadiness is the `{endpoint}` path value the readiness probe hits.
+const endpointReadiness = "readiness"
+
 // HTTP server timeout defaults (gosec G114: net/http serve helpers with no
 // timeout support are vulnerable to slowloris-style resource exhaustion).
 const (
@@ -55,14 +58,7 @@ func run() error {
 	// never kills the pod while the sidecar is still starting. Readiness returns
 	// 200 only once the Dapr client is connected, so the Deployment's Available
 	// condition (and traffic) waits for a working sidecar without a kill/restart race.
-	r.Get("/health/{endpoint:readiness|liveness}", func(w http.ResponseWriter, req *http.Request) {
-		if chi.URLParam(req, "endpoint") == "readiness" && !daprReady.Load() {
-			http.Error(w, `{"ok":false}`, http.StatusServiceUnavailable)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
-	})
+	r.Get("/health/{endpoint:readiness|liveness}", healthHandler)
 
 	srv := &http.Server{
 		Addr:              ":" + port,
@@ -104,6 +100,18 @@ func run() error {
 		return fmt.Errorf("read-values: ListenAndServe: %w", err)
 	}
 	return nil
+}
+
+// healthHandler serves the k8s probes. Readiness reflects daprReady (503 until
+// the sidecar connects); liveness (the only other endpoint the chi route
+// matches) is always 200 so a slow sidecar can't trigger a restart.
+func healthHandler(w http.ResponseWriter, req *http.Request) {
+	if chi.URLParam(req, "endpoint") == endpointReadiness && !daprReady.Load() {
+		http.Error(w, `{"ok":false}`, http.StatusServiceUnavailable)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
 }
 
 func Handle(res http.ResponseWriter, req *http.Request) {

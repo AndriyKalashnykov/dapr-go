@@ -61,6 +61,12 @@ IMAGE_REPO_PREFIX := ghcr.io/andriykalashnykov/dapr-go
 # from GHCR instead of the just-built branch code (the e2e then tests old code).
 # Falls back to git-describe then 0.0.0 only if version.txt is missing.
 IMAGE_TAG         ?= $(shell sed 's/^v//' version.txt 2>/dev/null || git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo 0.0.0)
+# Cache-buster for the runtime stage's `apk --no-cache upgrade` layer. BuildKit
+# re-runs that RUN when this ARG changes; a date-valued default refreshes the
+# alpine security patches on any local rebuild on a new day (CI passes the
+# per-run github.run_id instead). Without it, a local `make image-build` would
+# replay a stale upgrade layer forever and ship un-patched OS packages.
+APK_UPGRADE_BUST  ?= $(shell date -u +%Y%m%d)
 
 SERVICES := read-values subscriber write-values frontendsvc
 
@@ -252,6 +258,7 @@ image-build:
 		echo ">> image-build $$dir"; \
 		(cd "$$dir" && DOCKER_BUILDKIT=1 docker buildx build --load \
 			--platform linux/amd64 \
+			--build-arg APK_UPGRADE_BUST=$(APK_UPGRADE_BUST) \
 			-t $(IMAGE_REPO_PREFIX)/$$svc:$(IMAGE_TAG) .); \
 	done
 
@@ -263,6 +270,7 @@ image-push:
 		(cd "$$dir" && DOCKER_BUILDKIT=1 docker buildx build --push \
 			--platform linux/amd64,linux/arm64 \
 			--provenance=false --sbom=false \
+			--build-arg APK_UPGRADE_BUST=$(APK_UPGRADE_BUST) \
 			-t $(IMAGE_REPO_PREFIX)/$$svc:$(IMAGE_TAG) .); \
 	done
 
