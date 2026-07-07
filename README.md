@@ -13,10 +13,10 @@ Reference implementation of Dapr's State Management and Pub/Sub building blocks 
 |-----------|-----------|-----------|
 | Language | Go 1.26.4 (multi-module — one `go.mod` per service) | No shared workspace keeps each service independently versioned and releasable |
 | HTTP routers | [chi](https://github.com/go-chi/chi) v5 (read-values, write-values, subscriber); `net/http` (frontendsvc) | Lightweight router, no framework lock-in for a Dapr-fronted service |
-| Dapr client | [dapr/go-sdk](https://github.com/dapr/go-sdk) v1.14.2 | Official SDK for state/pub-sub calls over the sidecar gRPC API |
+| Dapr client | [dapr/go-sdk](https://github.com/dapr/go-sdk) v1.15.0 | Official SDK for state/pub-sub calls over the sidecar gRPC API |
 | Runtime | Dapr 1.18.1 — sidecar-injection model | `dapr.io/enabled` pod annotations avoid a shared daprd process per node |
 | State store + pub/sub broker | Redis 8 (`redis:8-alpine`, single instance, plain k8s manifest in `k8s/redis/`) | Replaces the former Bitnami Helm chart, whose public catalog broke in 2025 |
-| Local cluster | [KinD](https://kind.sigs.k8s.io/) v0.27 + [cloud-provider-kind](https://github.com/kubernetes-sigs/cloud-provider-kind) v0.11 | Real `LoadBalancer` IP assignment on a laptop-sized cluster, no Minikube tunnel |
+| Local cluster | [KinD](https://kind.sigs.k8s.io/) v0.32 + [cloud-provider-kind](https://github.com/kubernetes-sigs/cloud-provider-kind) v0.11 | Real `LoadBalancer` IP assignment on a laptop-sized cluster, no Minikube tunnel |
 | Toolchain manager | [mise](https://mise.jdx.dev/) (`.mise.toml` pins go, kind, kubectl, helm, dapr-cli, golangci-lint, govulncheck, gitleaks, actionlint, shellcheck, act, cloud-provider-kind) | One version-pin source Renovate can bump uniformly; replaces per-tool `go install`/curl installers |
 | Static analysis | [golangci-lint](https://golangci-lint.run/) (gocritic, gosec via `.golangci.yml`), [govulncheck](https://go.dev/security/vuln/), [gitleaks](https://github.com/gitleaks/gitleaks), [actionlint](https://github.com/rhysd/actionlint) | Catches code smells, known CVEs, committed secrets, and workflow-YAML bugs before push |
 | Testing | [Testcontainers-go](https://golang.testcontainers.org/) (Redis) | Validates the JSON wire-format roundtrip and cross-service contract without a live cluster |
