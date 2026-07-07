@@ -43,9 +43,21 @@ func main() {
 // already executed (gocritic exitAfterDefer: log.Fatal[f] inside a deferred
 // scope would exit the process before defer daprClient.Close() could run).
 func run() error {
-	dc, err := dapr.NewClient()
+	// The daprd sidecar and this app container start concurrently; NewClient can
+	// time out ("context deadline exceeded") while the sidecar is still loading
+	// components. Retry with bounded backoff instead of crashing the pod — a
+	// crash turns a transient startup race into CrashLoopBackOff under the probes.
+	var dc dapr.Client
+	var err error
+	for attempt := 1; attempt <= 15; attempt++ {
+		if dc, err = dapr.NewClient(); err == nil {
+			break
+		}
+		log.Printf("dapr client not ready (attempt %d/15): %v", attempt, err)
+		time.Sleep(3 * time.Second)
+	}
 	if err != nil {
-		return fmt.Errorf("dapr client: NewClient: %w", err)
+		return fmt.Errorf("dapr client: NewClient after 15 attempts: %w", err)
 	}
 	daprClient = dc
 	defer daprClient.Close()

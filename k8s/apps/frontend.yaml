@@ -50,6 +50,12 @@ spec:
             limits:
               cpu: "250m"
               memory: "128Mi"
+          startupProbe:
+            httpGet:
+              path: /health/readiness
+              port: 8080
+            periodSeconds: 3
+            failureThreshold: 40
           readinessProbe:
             httpGet:
               path: /health/readiness
