@@ -470,6 +470,8 @@ release:
 	fi
 	@if git rev-parse -q --verify "refs/tags/$(NEWTAG)" >/dev/null 2>&1; then echo "ERROR: tag $(NEWTAG) already exists locally. Pick a new version or delete it: git tag -d $(NEWTAG)"; exit 1; fi
 	@if git ls-remote --exit-code --tags origin "refs/tags/$(NEWTAG)" >/dev/null 2>&1; then echo "ERROR: tag $(NEWTAG) already exists on origin. Pick a new version."; exit 1; fi
+	@command -v gh >/dev/null 2>&1 || { echo "ERROR: gh CLI not found (needed to publish the GitHub Release) — install it (https://cli.github.com) or add it to .mise.toml." >&2; exit 1; }
+	@gh auth status >/dev/null 2>&1 || { echo "ERROR: gh is not authenticated — run 'gh auth login' before releasing." >&2; exit 1; }
 	@echo -n "Are you sure to create and push $(NEWTAG)? [y/N] " && read ans && [ $${ans:-N} = y ]
 	@echo $(NEWTAG) > version.txt
 	@git add version.txt
@@ -477,6 +479,11 @@ release:
 	@git tag -a -m "Cut $(NEWTAG) release" $(NEWTAG)
 	@git push origin $(NEWTAG)
 	@git push
+	@# Create the GitHub Release object so the repo's Releases panel shows this
+	@# version as "Latest" (the pushed tag alone triggers the image publish but
+	@# does NOT create a Release). --generate-notes builds notes from the PRs/
+	@# commits since the previous release; --verify-tag aborts if the tag is absent.
+	@gh release create $(NEWTAG) --title $(NEWTAG) --latest --verify-tag --generate-notes
 
 .PHONY: help \
 	deps deps-tools deps-act \
