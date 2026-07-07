@@ -3,15 +3,27 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"strings"
+	"time"
 
 	dapr "github.com/dapr/go-sdk/client"
 	"github.com/go-chi/chi/v5"
 )
 
 const stateKey = "values"
+
+// HTTP server timeout defaults (gosec G114: net/http serve helpers with no
+// timeout support are vulnerable to slowloris-style resource exhaustion).
+const (
+	readHeaderTimeout = 5 * time.Second
+	readTimeout       = 15 * time.Second
+	writeTimeout      = 15 * time.Second
+	idleTimeout       = 60 * time.Second
+)
 
 var (
 	daprClient dapr.Client
@@ -28,9 +40,19 @@ type MyValues struct {
 }
 
 func main() {
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+// run holds every deferred cleanup (the Dapr client Close) so that main()
+// only ever calls log.Fatal AFTER run has returned and its defers have
+// already executed (gocritic exitAfterDefer: log.Fatal[f] inside a deferred
+// scope would exit the process before defer daprClient.Close() could run).
+func run() error {
 	dc, err := dapr.NewClient()
 	if err != nil {
-		log.Fatalf("dapr client: NewClient: %s", err)
+		return fmt.Errorf("dapr client: NewClient: %w", err)
 	}
 	daprClient = dc
 	defer daprClient.Close()
@@ -38,14 +60,35 @@ func main() {
 	port := GetenvOrDefault("APP_PORT", "8080")
 	r := chi.NewRouter()
 	r.Post("/", Handle)
+	r.Get("/health/{endpoint:readiness|liveness}", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+	})
 	log.Printf("Starting Write Values App in Port: %s", port)
-	if err := http.ListenAndServe(":"+port, r); err != nil {
-		log.Fatalf("write-values: ListenAndServe: %s", err)
+
+	srv := &http.Server{
+		Addr:              ":" + port,
+		Handler:           r,
+		ReadHeaderTimeout: readHeaderTimeout,
+		ReadTimeout:       readTimeout,
+		WriteTimeout:      writeTimeout,
+		IdleTimeout:       idleTimeout,
 	}
+	if err := srv.ListenAndServe(); err != nil {
+		return fmt.Errorf("write-values: ListenAndServe: %w", err)
+	}
+	return nil
 }
 
 // errMissingValue is returned when the request omits the required query param.
 var errMissingValue = errors.New("missing required query parameter 'value'")
+
+// sanitizeLog strips CR/LF from untrusted input before it is written to the
+// log, preventing log injection / forged log lines (gosec G706, CWE-117).
+func sanitizeLog(s string) string {
+	replacer := strings.NewReplacer("\n", " ", "\r", " ")
+	return replacer.Replace(s)
+}
 
 func Handle(res http.ResponseWriter, req *http.Request) {
 	value := req.URL.Query().Get("value")
@@ -61,7 +104,7 @@ func Handle(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	log.Printf("write-values: persisted %d values, published %q", len(values.Values), value)
+	log.Printf("write-values: persisted %d values, published %q", len(values.Values), sanitizeLog(value))
 	respondWithJSON(res, http.StatusOK, values)
 }
 

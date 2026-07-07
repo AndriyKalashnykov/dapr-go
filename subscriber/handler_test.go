@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -35,7 +36,7 @@ func TestNotifications(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodPost, "/notifications",
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/notifications",
 				bytes.NewBufferString(tc.body))
 			req.Header.Set("Content-Type", "application/json")
 			rec := httptest.NewRecorder()

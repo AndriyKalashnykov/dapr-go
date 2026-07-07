@@ -2,15 +2,26 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	dapr "github.com/dapr/go-sdk/client"
 	"github.com/go-chi/chi/v5"
 )
 
 const stateKey = "values"
+
+// HTTP server timeout defaults (gosec G114: net/http serve helpers with no
+// timeout support are vulnerable to slowloris-style resource exhaustion).
+const (
+	readHeaderTimeout = 5 * time.Second
+	readTimeout       = 15 * time.Second
+	writeTimeout      = 15 * time.Second
+	idleTimeout       = 60 * time.Second
+)
 
 var (
 	daprClient     dapr.Client
@@ -22,9 +33,19 @@ type MyValues struct {
 }
 
 func main() {
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+// run holds every deferred cleanup (the Dapr client Close) so that main()
+// only ever calls log.Fatal AFTER run has returned and its defers have
+// already executed (gocritic exitAfterDefer: log.Fatal[f] inside a deferred
+// scope would exit the process before defer daprClient.Close() could run).
+func run() error {
 	dc, err := dapr.NewClient()
 	if err != nil {
-		log.Fatalf("dapr client: NewClient: %s", err)
+		return fmt.Errorf("dapr client: NewClient: %w", err)
 	}
 	daprClient = dc
 	defer daprClient.Close()
@@ -36,9 +57,19 @@ func main() {
 	})
 	port := GetenvOrDefault("APP_PORT", "8080")
 	log.Printf("Starting Read Values App in Port: %s", port)
-	if err := http.ListenAndServe(":"+port, r); err != nil {
-		log.Fatalf("read-values: ListenAndServe: %s", err)
+
+	srv := &http.Server{
+		Addr:              ":" + port,
+		Handler:           r,
+		ReadHeaderTimeout: readHeaderTimeout,
+		ReadTimeout:       readTimeout,
+		WriteTimeout:      writeTimeout,
+		IdleTimeout:       idleTimeout,
 	}
+	if err := srv.ListenAndServe(); err != nil {
+		return fmt.Errorf("read-values: ListenAndServe: %w", err)
+	}
+	return nil
 }
 
 func Handle(res http.ResponseWriter, req *http.Request) {

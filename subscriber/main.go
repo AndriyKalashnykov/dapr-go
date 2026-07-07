@@ -7,8 +7,18 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"os"
+	"time"
 
 	"github.com/go-chi/chi/v5"
+)
+
+// HTTP server timeout defaults (gosec G114: net/http serve helpers with no
+// timeout support are vulnerable to slowloris-style resource exhaustion).
+const (
+	readHeaderTimeout = 5 * time.Second
+	readTimeout       = 15 * time.Second
+	writeTimeout      = 15 * time.Second
+	idleTimeout       = 60 * time.Second
 )
 
 type Result struct {
@@ -17,7 +27,7 @@ type Result struct {
 
 func notifications(w http.ResponseWriter, r *http.Request) {
 	if dump, err := httputil.DumpRequest(r, true); err == nil {
-		log.Println(string(dump))
+		log.Println(string(dump)) //nolint:gosec // G706: multi-line raw request-dump diagnostic output, not a single log record — sanitizing would defeat its purpose
 	}
 
 	data, err := io.ReadAll(r.Body)
@@ -43,7 +53,7 @@ func notifications(w http.ResponseWriter, r *http.Request) {
 
 func printRoot(_ http.ResponseWriter, r *http.Request) {
 	if dump, err := httputil.DumpRequest(r, true); err == nil {
-		log.Println(string(dump))
+		log.Println(string(dump)) //nolint:gosec // G706: multi-line raw request-dump diagnostic output, not a single log record — sanitizing would defeat its purpose
 	}
 }
 
@@ -58,7 +68,16 @@ func main() {
 	})
 
 	log.Printf("Starting Subscriber in Port: %s", port)
-	if err := http.ListenAndServe(":"+port, r); err != nil {
+
+	srv := &http.Server{
+		Addr:              ":" + port,
+		Handler:           r,
+		ReadHeaderTimeout: readHeaderTimeout,
+		ReadTimeout:       readTimeout,
+		WriteTimeout:      writeTimeout,
+		IdleTimeout:       idleTimeout,
+	}
+	if err := srv.ListenAndServe(); err != nil {
 		log.Fatalf("subscriber: ListenAndServe: %s", err)
 	}
 }

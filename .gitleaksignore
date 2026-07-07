@@ -1,0 +1,13 @@
+# gitleaks allowlist — fingerprint form: <commit>:<file>:<rule>:<line>
+#
+# Historical demo Redis password committed 2024-05-30 in k8s/redis-password.yaml.
+# That file was REMOVED from the tree; the Redis password is now generated at
+# deploy time by scripts/components.sh (`openssl rand -base64 24`, fed to
+# kubectl via stdin) and stored in the `redis-password-secret` Secret. The
+# historical value protects nothing (nothing references it), so rotation is
+# moot. These fingerprints allowlist the immutable past commit so `make secrets`
+# (gitleaks detect over history) stays green without a destructive history
+# rewrite. If the git history is ever rewritten (git filter-repo + force-push +
+# tag re-cut), delete this file.
+e3af2ee586d7c8a697a444fbfbcccff12cfb54d6:k8s/redis-password.yaml:kubernetes-secret-yaml:2
+e3af2ee586d7c8a697a444fbfbcccff12cfb54d6:k8s/redis-password.yaml:generic-api-key:7

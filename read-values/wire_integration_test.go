@@ -38,11 +38,18 @@ func (g *redisBackedGetter) GetState(ctx context.Context, _, key string, _ map[s
 	return &dapr.StateItem{Key: key, Value: bytes}, nil
 }
 
+// testRedisImage is Renovate-tracked via the *.go customManager in
+// renovate.json. NEVER inline this literal into tcredis.Run — Renovate
+// won't see the string, the pin will drift, CVEs will accumulate.
+//
+// renovate: datasource=docker depName=redis
+const testRedisImage = "redis:8-alpine"
+
 func TestAverageStoredValuesAgainstRedis(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	rc, err := tcredis.Run(ctx, "redis:7-alpine")
+	rc, err := tcredis.Run(ctx, testRedisImage)
 	if err != nil {
 		t.Fatalf("start redis container: %v", err)
 	}

@@ -5,6 +5,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_PARENT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # shellcheck source=env.sh
 . "${SCRIPT_DIR}/env.sh"
 
@@ -33,24 +34,11 @@ case "${SCRIPT_ACTION}" in
       echo "Reusing existing redis-password-secret in namespace ${DAPRGO_NS}"
     fi
 
-    helm repo add bitnami https://charts.bitnami.com/bitnami 2>/dev/null || true
-    helm repo update bitnami
-    helm upgrade --install redis bitnami/redis \
-      --kube-context "${KUBECTL_CTX}" \
-      --namespace "${DAPRGO_NS}" \
-      --wait \
-      --set auth.existingSecret=redis-password-secret \
-      --set master.persistence.enabled=true \
-      --set master.service.type=ClusterIP \
-      --set architecture=replication \
-      --set master.count=1 \
-      --set replica.replicaCount=1 \
-      --set master.disableCommands=null \
-      --set master.livenessProbe.initialDelaySeconds=1 \
-      --set master.readinessProbe.initialDelaySeconds=1
+    "${KUBECTL[@]}" apply -n "${DAPRGO_NS}" -f "${SCRIPT_PARENT_DIR}/k8s/redis/"
+    "${KUBECTL[@]}" rollout status deployment/redis-master -n "${DAPRGO_NS}" --timeout=120s
     ;;
   undeploy)
-    helm uninstall redis --kube-context "${KUBECTL_CTX}" --namespace "${DAPRGO_NS}" || true
+    "${KUBECTL[@]}" delete -n "${DAPRGO_NS}" -f "${SCRIPT_PARENT_DIR}/k8s/redis/" --ignore-not-found=true
     "${KUBECTL[@]}" delete secret redis-password-secret \
       --namespace "${DAPRGO_NS}" --ignore-not-found=true
     ;;

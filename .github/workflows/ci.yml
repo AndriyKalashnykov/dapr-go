@@ -37,8 +37,9 @@ jobs:
           base: ${{ github.event_name == 'push' && 'main' || '' }}
           filters: |
             code:
-              - '!(**.md|docs/**|LICENSE|.gitignore|.claude/**|**.png|**.jpg|**.gif|**.svg)'
+              - '!(**.md|docs/**|specs/**|LICENSE|.gitignore|.claudeignore|.claude/**|benchmarks/**|**.png|**.jpg|**.gif|**.svg)'
               - 'CLAUDE.md'
+              - 'docs/diagrams/**/*.puml'
 
   static-check:
     needs: [changes]
@@ -53,7 +54,7 @@ jobs:
 
   build:
     needs: [changes, static-check]
-    if: needs.changes.outputs.code == 'true'
+    if: ${{ !failure() && !cancelled() && needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -69,12 +70,12 @@ jobs:
             write-values/go.sum
       - name: Build
         run: make build
-      - name: Image build
+      - name: Build image
         run: make image-build
 
   test:
     needs: [changes, static-check]
-    if: needs.changes.outputs.code == 'true'
+    if: ${{ !failure() && !cancelled() && needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -93,7 +94,7 @@ jobs:
 
   integration-test:
     needs: [changes, static-check]
-    if: needs.changes.outputs.code == 'true'
+    if: ${{ !failure() && !cancelled() && needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -107,20 +108,25 @@ jobs:
             state/frontendsvc/go.sum
             subscriber/go.sum
             write-values/go.sum
-      - name: Integration test (Testcontainers Redis)
+      # Uses Testcontainers Redis to validate the JSON wire-format roundtrip
+      # and the cross-service contract.
+      - name: Integration test
         run: make integration-test
 
   e2e:
-    needs: [changes, build, test, integration-test]
+    needs: [changes, build, test]
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
-      - name: Install build deps (cloud-provider-kind, lint/vuln tools)
+      # Installs cloud-provider-kind plus lint/vuln toolchain via `go install`.
+      - name: Install dependencies
         run: make deps
-      - name: Bring up KinD + Dapr + components + workloads
+      # Brings up KinD, Dapr control plane, Dapr components, and the four
+      # service workloads (kind-up → deploy-dapr → deploy-components → deploy-workloads).
+      - name: Bring up KinD cluster and workloads
         run: make kind-deploy
       - name: Run e2e
         run: make e2e
@@ -138,7 +144,10 @@ jobs:
 
   docker:
     # Tag-gated: builds + scans + signs + publishes images to GHCR on `v*` tags only.
-    if: startsWith(github.ref, 'refs/tags/')
+    # Requires e2e to have actually SUCCEEDED (not merely skipped) — this is a
+    # release-signing job, so !failure()/!cancelled() alone (which treats a
+    # skipped need as pass-equivalent) is not strict enough here.
+    if: ${{ !failure() && !cancelled() && needs.e2e.result == 'success' && startsWith(github.ref, 'refs/tags/') }}
     needs: [changes, build, test, integration-test, e2e]
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -179,6 +188,11 @@ jobs:
           platforms: linux/amd64
           load: true
           tags: dapr-go-${{ matrix.name }}:scan
+          # Bust the `apk --no-cache upgrade` layer per run so the scanned
+          # image reflects the latest alpine:3.23 security patches, not a
+          # stale gha-cached layer.
+          build-args: |
+            APK_UPGRADE_BUST=${{ github.run_id }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -237,11 +251,11 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # All gates passed → publish multi-arch.
-      # provenance: false + sbom: false keeps the image index free of unknown/unknown
-      # entries so GHCR's Packages UI renders the "OS / Arch" tab. Cosign signing below
+      # All gates passed → publish multi-arch (provenance: false + sbom: false
+      # keeps the image index free of unknown/unknown entries so GHCR's
+      # Packages UI renders the "OS / Arch" tab). Cosign signing below
       # provides Sigstore supply-chain verification.
-      - name: Build and push (multi-arch)
+      - name: Build and push
         id: push
         uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
         with:
@@ -252,6 +266,10 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           provenance: false
           sbom: false
+          # Bust the `apk --no-cache upgrade` layer per run so published
+          # images carry the latest alpine:3.23 security patches.
+          build-args: |
+            APK_UPGRADE_BUST=${{ github.run_id }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

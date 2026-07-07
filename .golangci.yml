@@ -1,0 +1,31 @@
+version: "2"
+
+formatters:
+  enable:
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/andriykalashnykov/dapr-go
+
+linters:
+  default: standard
+  enable:
+    - bodyclose     # detect unclosed HTTP response bodies
+    - errorlint     # enforce errors.Is/As over == comparison
+    - goconst       # repeated strings/numbers that should be constants
+    - gocritic      # comprehensive style/performance/diagnostic checks
+    - gosec         # SAST security scanner
+    - misspell      # catch misspellings in comments and strings
+    - noctx         # detect HTTP requests without context
+  settings:
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - experimental
+        - opinionated
+        - performance
+        - style
+    gosec:
+      excludes:
+        - G104  # unhandled errors — already covered by errcheck

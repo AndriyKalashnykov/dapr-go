@@ -1,13 +1,14 @@
 package main
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
-	"math/rand"
 	"net/http"
 	"os"
+	"time"
 
 	dapr "github.com/dapr/go-sdk/client"
 
@@ -16,15 +17,34 @@ import (
 
 const stateStoreName = "statestore"
 
+// HTTP server timeout defaults (gosec G114: net/http serve helpers with no
+// timeout support are vulnerable to slowloris-style resource exhaustion).
+const (
+	readHeaderTimeout = 5 * time.Second
+	readTimeout       = 15 * time.Second
+	writeTimeout      = 15 * time.Second
+	idleTimeout       = 60 * time.Second
+)
+
 var (
 	appPort    = getenvOrDefault("APP_PORT", "8080")
 	daprClient dapr.Client
 )
 
 func main() {
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+// run holds every deferred cleanup (the Dapr client Close) so that main()
+// only ever calls log.Fatal AFTER run has returned and its defers have
+// already executed (gocritic exitAfterDefer: log.Fatal[f] inside a deferred
+// scope would exit the process before defer daprClient.Close() could run).
+func run() error {
 	dc, err := dapr.NewClient()
 	if err != nil {
-		log.Fatalf("dapr client: NewClient: %s", err)
+		return fmt.Errorf("dapr client: NewClient: %w", err)
 	}
 	daprClient = dc
 	defer daprClient.Close()
@@ -34,10 +54,20 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /orders/new", postOrder)
 	mux.HandleFunc("GET /orders/order/{id}", getOrder)
+	mux.HandleFunc("GET /health/{endpoint}", healthCheck)
 
-	if err := http.ListenAndServe(":"+appPort, mux); err != nil {
-		log.Fatalf("frontend: %s", err)
+	srv := &http.Server{
+		Addr:              ":" + appPort,
+		Handler:           mux,
+		ReadHeaderTimeout: readHeaderTimeout,
+		ReadTimeout:       readTimeout,
+		WriteTimeout:      writeTimeout,
+		IdleTimeout:       idleTimeout,
 	}
+	if err := srv.ListenAndServe(); err != nil {
+		return fmt.Errorf("frontend: %w", err)
+	}
+	return nil
 }
 
 func postOrder(w http.ResponseWriter, r *http.Request) {
@@ -82,8 +112,32 @@ func getOrder(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// healthCheck mirrors the read-values/subscriber chi route
+// `GET /health/{endpoint:readiness|liveness}` — frontendsvc's router is the
+// stdlib net/http.ServeMux (no regex path constraints), so the
+// readiness|liveness constraint is enforced in the handler body instead of
+// the route pattern.
+func healthCheck(w http.ResponseWriter, r *http.Request) {
+	switch r.PathValue("endpoint") {
+	case "readiness", "liveness":
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+	default:
+		http.NotFound(w, r)
+	}
+}
+
+// randomOrderID generates an order ID from 4 cryptographically random bytes
+// (gosec G404: math/rand is not suitable for anything that must not be
+// predictable/guessable, including resource identifiers). Falls back to a
+// timestamp-derived suffix in the astronomically unlikely case crypto/rand's
+// entropy source is unavailable, so order creation never hard-fails on it.
 func randomOrderID() string {
-	return fmt.Sprintf("order-%x", rand.Int31())
+	var b [4]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return fmt.Sprintf("order-%x", time.Now().UnixNano())
+	}
+	return fmt.Sprintf("order-%x", b)
 }
 
 func getenvOrDefault(name, def string) string {

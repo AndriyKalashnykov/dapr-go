@@ -1,5 +1,8 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": [
+    "platformAutomerge is deliberately false: main is gated by a required `ci-pass` GitHub Ruleset status check, and native platform automerge can win the check-registration race and merge a red bump before the check lands. automerge/automergeType=pr stay on; Renovate's own PR-merge path waits for checks to report before merging."
+  ],
   "extends": [
     "config:best-practices",
     ":semanticCommitType(chore)"
@@ -15,7 +18,7 @@
   "labels": ["dependencies"],
   "prConcurrentLimit": 50,
   "prHourlyLimit": 0,
-  "platformAutomerge": true,
+  "platformAutomerge": false,
   "automerge": true,
   "automergeType": "pr",
   "automergeStrategy": "squash",
@@ -26,8 +29,25 @@
       "description": "Update Makefile tool versions via inline renovate comments",
       "managerFilePatterns": ["/^Makefile$/"],
       "matchStrings": [
-        "# renovate: datasource=(?<datasource>[^\\s]+) depName=(?<depName>[^\\s]+)( versioning=(?<versioning>[^\\s]+))?\\n[A-Z_]+\\s*:=\\s*(?<currentValue>[^\\s]+)"
+        "# renovate: datasource=(?<datasource>[^\\s]+) depName=(?<depName>[^\\s]+)(?: extractVersion=(?<extractVersion>[^\\s]+))?(?: registryUrl=(?<registryUrl>[^\\s]+))?(?: versioning=(?<versioning>[^\\s]+))?\\n[A-Z_]+\\s*[?:]?=\\s*(?<currentValue>[^\\s]+)"
       ]
+    },
+    {
+      "customType": "regex",
+      "description": "Update helm chart versions pinned via inline renovate comments in scripts/*.sh (e.g. DAPR_VERSION in scripts/dapr.sh, a chart version var in scripts/components.sh) — VAR=\"${VAR:-value}\" shell shape.",
+      "managerFilePatterns": ["scripts/*.sh"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[^\\s]+) depName=(?<depName>[^\\s]+)(?: extractVersion=(?<extractVersion>[^\\s]+))?(?: registryUrl=(?<registryUrl>[^\\s]+))?(?: versioning=(?<versioning>[^\\s]+))?\\n\\s*[A-Z_]+=\"\\$\\{[A-Z_]+:-(?<currentValue>[^}\"]+)\\}\""
+      ]
+    },
+    {
+      "customType": "regex",
+      "description": "Update the Testcontainers Redis image tag pinned via an inline renovate comment above a Go const (e.g. // renovate: datasource=docker depName=redis above const testRedisImage = \"redis:8-alpine\"). Only the tag after the last colon is captured as currentValue.",
+      "managerFilePatterns": ["**/*.go"],
+      "matchStrings": [
+        "// renovate: datasource=(?<datasource>[^\\s]+) depName=(?<depName>[^\\s]+)(?: extractVersion=(?<extractVersion>[^\\s]+))?(?: registryUrl=(?<registryUrl>[^\\s]+))?(?: versioning=(?<versioning>[^\\s]+))?\\n\\s*const \\w+ = \"[^\"]*:(?<currentValue>[^\"]+)\""
+      ],
+      "versioningTemplate": "{{#if versioning}}{{versioning}}{{else}}docker{{/if}}"
     }
   ],
   "vulnerabilityAlerts": {
@@ -58,8 +78,20 @@
       "rangeStrategy": "bump"
     },
     {
-      "description": "Disable first-party images built locally — not published to a registry",
-      "matchPackageNames": ["/^andriykalashnykov\\/dapr-go-/"],
+      "description": "Group Go toolchain bumps into a single PR across managers — go.mod directives (4 modules), .mise.toml's go pin, and each service Dockerfile's golang base image must land together or CI deadlocks on a version-skew gate (see check-toolchain-alignment).",
+      "matchManagers": ["gomod", "dockerfile", "mise"],
+      "matchDepNames": ["go", "golang"],
+      "groupName": "Go toolchain"
+    },
+    {
+      "description": "No customManager regex here captures a digest (Makefile tool images like TRIVY/PLANTUML, scripts/*.sh helm chart pins, *.go Testcontainers image tags), so docker:pinDigests can never render a write for them — disable it.",
+      "matchManagers": ["custom.regex"],
+      "matchDatasources": ["docker"],
+      "pinDigests": false
+    },
+    {
+      "description": "Disable tracking of the project's own first-party images — ghcr.io/andriykalashnykov/dapr-go/<service> images ARE published + cosign-signed to GHCR by this repo's own CI docker job, but Renovate must never open a PR bumping the project to its own next release tag.",
+      "matchPackageNames": ["/^ghcr\\.io\\/andriykalashnykov\\/dapr-go\\//"],
       "enabled": false
     }
   ]
