@@ -17,10 +17,10 @@ AddElementTag("datastore", $fontColor="#FFFFFF", $bgColor="#7C3AED", $borderColo
 title dapr-go — Deployment View (KinD + cloud-provider-kind)
 
 Deployment_Node(host, "Developer host", "Linux/macOS, Docker Engine") {
-  Deployment_Node(kind_node, "KinD node container", "kindest/node:v1.34.0") {
+  Deployment_Node(kind_node, "KinD node container", "kindest/node:v1.36.1") {
 
     Deployment_Node(ns_dapr_system, "namespace: dapr-system") {
-      Container(dapr_operator, "dapr-operator + sidecar-injector", "Helm chart dapr/dapr v1.15.10")
+      Container(dapr_operator, "dapr-operator + sidecar-injector", "Helm chart dapr/dapr v1.18.1")
     }
 
     Deployment_Node(ns_dapr_go, "namespace: dapr-go") {

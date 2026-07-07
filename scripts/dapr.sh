@@ -8,7 +8,7 @@ SCRIPT_PARENT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 . "${SCRIPT_DIR}/env.sh"
 
 # renovate: datasource=helm depName=dapr registryUrl=https://dapr.github.io/helm-charts/
-DAPR_VERSION="${DAPR_VERSION:-1.15.10}"
+DAPR_VERSION="${DAPR_VERSION:-1.18.1}"
 
 SCRIPT_ACTION="${1:-deploy}"
 DAPRGO_NS="${2:-${DEFAULT_NS}}"
